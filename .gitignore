@@ -1,0 +1,12 @@
+node_modules/
+.npm-cache/
+.env
+.env.production
+.env.local
+.DS_Store
+npm-debug.log*
+logs/
+*.log
+.idea/
+.vscode/
+.railway/

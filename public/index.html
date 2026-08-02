@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoom 雙邊同步翻譯字幕</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+  <!-- 大廳：加入會議 -->
+  <section id="lobby" class="lobby">
+    <div class="lobby-card">
+      <h1 class="brand">Sync<span>Sub</span> Meeting</h1>
+      <p class="lead">雙邊同步翻譯字幕會議室。與日本教授開 Zoom 時，雙方用 Chrome 開啟同一房號，各自收音、即時互看字幕。</p>
+
+      <div class="field">
+        <label for="displayName">顯示名稱</label>
+        <input id="displayName" type="text" maxlength="40" placeholder="例如：張老師 / 田中教授" />
+      </div>
+
+      <div class="field">
+        <label for="roomId">會議房號（雙方相同）</label>
+        <input id="roomId" type="text" maxlength="64" value="meeting-001" />
+      </div>
+
+      <div class="field">
+        <label>我的身分（自動配對語系）</label>
+        <div class="role-grid">
+          <button type="button" class="role-btn active" data-role="tw" id="roleTw">
+            <strong>台灣端</strong>
+            <small>說中文 → 翻譯成日文</small>
+          </button>
+          <button type="button" class="role-btn" data-role="jp" id="roleJp">
+            <strong>日本端</strong>
+            <small>說日文 → 翻譯成中文</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="serverUrl">中繼站位址（本機預設即可）</label>
+        <input id="serverUrl" type="text" value="" placeholder="空白 = 目前這個網站" />
+      </div>
+
+      <button type="button" class="primary-btn" id="enterBtn">進入會議室</button>
+      <p class="hint">
+        使用方式：雙方各開一個 Chrome 視窗放在 Zoom 旁邊 → 輸入相同房號 → 按「開始收音」。<br />
+        需使用 Chrome / Edge，並允許麥克風。正式會議建議部署 HTTPS 並改用 DeepL / OpenAI。
+      </p>
+    </div>
+  </section>
+
+  <!-- 會議室 -->
+  <section id="room" class="room hidden">
+    <header id="topbar" class="topbar">
+      <div class="brand-mini">
+        <i id="connDot" class="dot warn"></i>
+        <span>SyncSub</span>
+        <span id="roomLabel" style="color:var(--muted);font-weight:500;font-size:0.9rem"></span>
+      </div>
+
+      <div class="controls">
+        <label class="chip">
+          我的語言
+          <select id="myLang">
+            <option value="zh-TW">中文 (台灣)</option>
+            <option value="ja-JP">日本語</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+        <label class="chip">
+          翻譯為
+          <select id="targetLang">
+            <option value="ja-JP">日本語</option>
+            <option value="zh-TW">中文 (台灣)</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+        <button type="button" class="action-btn" id="toggleBtn">開始收音</button>
+        <div class="volume" id="volumeWrap" title="麥克風音量"><i id="volumeBar"></i></div>
+        <button type="button" class="icon-btn" id="fontDown" title="字級縮小">A−</button>
+        <button type="button" class="icon-btn" id="fontUp" title="字級放大">A+</button>
+        <button type="button" class="icon-btn" id="exportBtn" title="匯出逐字稿">↓</button>
+        <button type="button" class="icon-btn" id="leaveBtn" title="離開房間">✕</button>
+        <button type="button" class="icon-btn" id="hidePanelBtn" title="隱藏面板">⌃</button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <button type="button" class="icon-btn float-gear hidden" id="showPanelBtn" title="顯示面板">⚙</button>
+
+      <div class="meta-row">
+        <div>
+          <div class="status-pill" id="statusPill">尚未連線</div>
+          <div class="debug" id="debugLog"></div>
+        </div>
+        <div class="members-pill" id="membersPill">房間人數：0</div>
+      </div>
+
+      <div class="stream" id="stream">
+        <div class="placeholder" id="placeholder">
+          點「開始收音」後，你的發言會即時出現在這裡，<br />
+          對方也會同步看到翻譯字幕。
+        </div>
+      </div>
+
+      <div class="interim" id="interimBox">聽寫中...</div>
+    </main>
+  </section>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

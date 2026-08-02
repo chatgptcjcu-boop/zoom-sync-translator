@@ -1,0 +1,34 @@
+{
+  "name": "zoom-sync-translator",
+  "version": "1.0.0",
+  "description": "雙邊同步翻譯字幕中繼站 — Zoom / 線上會議專用",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "health": "curl -s http://localhost:3100/health | python3 -m json.tool",
+    "smoke": "node scripts/smoke-dual.js",
+    "railway": "railway"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "zoom",
+    "subtitle",
+    "translation",
+    "websocket",
+    "speech"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@railway/cli": "^5.30.3",
+    "socket.io-client": "^4.8.3"
+  }
+}
