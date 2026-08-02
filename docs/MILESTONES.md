@@ -3,10 +3,12 @@
 | 里程碑 | 目標 | 狀態 |
 |--------|------|------|
 | **M0** 規格 | Railway 運作規格書 | ✅ 完成 |
-| **M1** 部署 | GitHub + Railway 公開 HTTPS 中繼 | 🔄 設定檔已就緒；待推送／登入 Railway |
+| **M1** 部署 | GitHub + Railway 公開 HTTPS 中繼 | 🔄 GitHub 已推送；待你完成 Railway 登入與 Deploy |
 | **M2** DeepL | Production 使用 DeepL 翻譯 | ⏳ 待你提供 `DEEPL_API_KEY` |
 | **M3** 彩排 | 雙端＋Zoom 模擬開會驗收 | ⏳ 見 M3 SOP |
 | **M4** 實戰 | 對日本教授正式會議 | ⏳ 見 M4 Runbook |
+
+**GitHub：** https://github.com/chatgptcjcu-boop/zoom-sync-translator  
 
 **正式網址（部署後填寫）：** `https://____________________.up.railway.app`
 
