@@ -65,18 +65,24 @@ app.get('/health', (_req, res) => {
   const stats = rooms.stats();
   const openaiKey = String(process.env.OPENAI_API_KEY || '').trim();
   const deeplKey = String(process.env.DEEPL_API_KEY || '').trim();
+
+  // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務
+  const relatedEnvNames = Object.keys(process.env)
+    .filter((k) => /^(OPENAI|DEEPL|TRANSLATE|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k))
+    .sort();
+
   res.json({
     ok: true,
     uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
     rooms: stats.rooms,
     sockets: stats.sockets,
     translateProviders: providerChain().map((p) => p.name),
-    // 診斷用：只回傳「有沒有設到」，絕不回傳金鑰內容
     env: {
       TRANSLATE_PROVIDER: process.env.TRANSLATE_PROVIDER || '(unset)',
       hasOpenAIKey: openaiKey.length > 0,
       hasDeepLKey: deeplKey.length > 0,
       TRUST_PROXY: process.env.TRUST_PROXY || '(unset)',
+      relatedEnvNames,
     },
   });
 });
@@ -216,6 +222,12 @@ server.listen(PORT, () => {
   console.log('=========================================');
   console.log(`同步翻譯中繼站已啟動  http://localhost:${PORT}`);
   console.log(`翻譯引擎鏈: ${providerChain().map((p) => p.name).join(' → ')}`);
+  console.log(
+    `[env] TRANSLATE_PROVIDER=${process.env.TRANSLATE_PROVIDER || '(unset)'} ` +
+      `hasOpenAIKey=${Boolean(String(process.env.OPENAI_API_KEY || '').trim())} ` +
+      `hasDeepLKey=${Boolean(String(process.env.DEEPL_API_KEY || '').trim())} ` +
+      `TRUST_PROXY=${process.env.TRUST_PROXY || '(unset)'}`
+  );
   console.log('=========================================');
 });
 
