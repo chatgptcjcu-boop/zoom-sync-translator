@@ -63,12 +63,21 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (_req, res) => {
   const stats = rooms.stats();
+  const openaiKey = String(process.env.OPENAI_API_KEY || '').trim();
+  const deeplKey = String(process.env.DEEPL_API_KEY || '').trim();
   res.json({
     ok: true,
     uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
     rooms: stats.rooms,
     sockets: stats.sockets,
     translateProviders: providerChain().map((p) => p.name),
+    // 診斷用：只回傳「有沒有設到」，絕不回傳金鑰內容
+    env: {
+      TRANSLATE_PROVIDER: process.env.TRANSLATE_PROVIDER || '(unset)',
+      hasOpenAIKey: openaiKey.length > 0,
+      hasDeepLKey: deeplKey.length > 0,
+      TRUST_PROXY: process.env.TRUST_PROXY || '(unset)',
+    },
   });
 });
 

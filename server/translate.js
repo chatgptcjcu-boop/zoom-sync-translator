@@ -44,7 +44,7 @@ async function translateWithMyMemory(text, src, tgt) {
 }
 
 async function translateWithDeepL(text, src, tgt) {
-  const key = process.env.DEEPL_API_KEY;
+  const key = String(process.env.DEEPL_API_KEY || '').trim();
   if (!key) throw new Error('DeepL: missing DEEPL_API_KEY');
 
   const base = (process.env.DEEPL_API_URL || 'https://api-free.deepl.com').replace(/\/$/, '');
@@ -70,10 +70,10 @@ async function translateWithDeepL(text, src, tgt) {
 }
 
 async function translateWithOpenAI(text, src, tgt) {
-  const key = process.env.OPENAI_API_KEY;
+  const key = String(process.env.OPENAI_API_KEY || '').trim();
   if (!key) throw new Error('OpenAI: missing OPENAI_API_KEY');
 
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = String(process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
   const srcLabel = mapLang(src, 'openai');
   const tgtLabel = mapLang(tgt, 'openai');
 
@@ -116,8 +116,8 @@ function providerChain() {
 
   // 優先使用設定的引擎，其餘作備援
   const catalog = {
-    deepl: { fn: translateWithDeepL, available: !!process.env.DEEPL_API_KEY },
-    openai: { fn: translateWithOpenAI, available: !!process.env.OPENAI_API_KEY },
+    deepl: { fn: translateWithDeepL, available: String(process.env.DEEPL_API_KEY || '').trim().length > 0 },
+    openai: { fn: translateWithOpenAI, available: String(process.env.OPENAI_API_KEY || '').trim().length > 0 },
     mymemory: { fn: translateWithMyMemory, available: true },
   };
 
