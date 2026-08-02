@@ -10,6 +10,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const { translate, providerChain } = require('./translate');
 const { RoomManager } = require('./rooms');
+const { envGet, envHas } = require('./env');
 
 const PORT = Number(process.env.PORT) || 3100;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
@@ -63,12 +64,13 @@ app.use(express.static(path.join(__dirname, '..', 'public')));
 
 app.get('/health', (_req, res) => {
   const stats = rooms.stats();
-  const openaiKey = String(process.env.OPENAI_API_KEY || '').trim();
-  const deeplKey = String(process.env.DEEPL_API_KEY || '').trim();
+  const openaiKey = envGet('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY');
+  const deeplKey = envGet('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY');
+  const provider = envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)';
 
-  // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務
+  // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務／未 Deploy staged
   const relatedEnvNames = Object.keys(process.env)
-    .filter((k) => /^(OPENAI|DEEPL|TRANSLATE|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k))
+    .filter((k) => /^(OPENAI|DEEPL|TRANSLATE|SYNC_|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k))
     .sort();
 
   res.json({
@@ -78,18 +80,22 @@ app.get('/health', (_req, res) => {
     sockets: stats.sockets,
     translateProviders: providerChain().map((p) => p.name),
     env: {
-      TRANSLATE_PROVIDER: process.env.TRANSLATE_PROVIDER || '(unset)',
+      TRANSLATE_PROVIDER: provider,
       hasOpenAIKey: openaiKey.length > 0,
       hasDeepLKey: deeplKey.length > 0,
-      TRUST_PROXY: process.env.TRUST_PROXY || '(unset)',
+      TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
       relatedEnvNames,
+      hint:
+        openaiKey.length === 0
+          ? 'OpenAI key missing in runtime. On Railway canvas, open purple Staged changes → Deploy (not Redeploy).'
+          : 'ok',
     },
   });
 });
 
 app.get('/api/config', (_req, res) => {
   res.json({
-    defaultProvider: process.env.TRANSLATE_PROVIDER || 'mymemory',
+    defaultProvider: envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'mymemory',
     providers: providerChain().map((p) => p.name),
   });
 });
@@ -223,10 +229,10 @@ server.listen(PORT, () => {
   console.log(`同步翻譯中繼站已啟動  http://localhost:${PORT}`);
   console.log(`翻譯引擎鏈: ${providerChain().map((p) => p.name).join(' → ')}`);
   console.log(
-    `[env] TRANSLATE_PROVIDER=${process.env.TRANSLATE_PROVIDER || '(unset)'} ` +
-      `hasOpenAIKey=${Boolean(String(process.env.OPENAI_API_KEY || '').trim())} ` +
-      `hasDeepLKey=${Boolean(String(process.env.DEEPL_API_KEY || '').trim())} ` +
-      `TRUST_PROXY=${process.env.TRUST_PROXY || '(unset)'}`
+    `[env] TRANSLATE_PROVIDER=${envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)'} ` +
+      `hasOpenAIKey=${envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY')} ` +
+      `hasDeepLKey=${envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY')} ` +
+      `TRUST_PROXY=${envGet('TRUST_PROXY') || '(unset)'}`
   );
   console.log('=========================================');
 });

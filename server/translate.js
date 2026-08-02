@@ -3,6 +3,7 @@
  * 失敗時自動降級到下一個可用引擎。
  */
 const axios = require('axios');
+const { envGet, envHas } = require('./env');
 
 const LANG_MAP = {
   'zh-TW': { mymemory: 'zh-TW', deepl: 'ZH', openai: 'Traditional Chinese (Taiwan)' },
@@ -44,7 +45,7 @@ async function translateWithMyMemory(text, src, tgt) {
 }
 
 async function translateWithDeepL(text, src, tgt) {
-  const key = String(process.env.DEEPL_API_KEY || '').trim();
+  const key = envGet('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY');
   if (!key) throw new Error('DeepL: missing DEEPL_API_KEY');
 
   const base = (process.env.DEEPL_API_URL || 'https://api-free.deepl.com').replace(/\/$/, '');
@@ -70,10 +71,10 @@ async function translateWithDeepL(text, src, tgt) {
 }
 
 async function translateWithOpenAI(text, src, tgt) {
-  const key = String(process.env.OPENAI_API_KEY || '').trim();
+  const key = envGet('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY');
   if (!key) throw new Error('OpenAI: missing OPENAI_API_KEY');
 
-  const model = String(process.env.OPENAI_MODEL || 'gpt-4o-mini').trim();
+  const model = envGet('OPENAI_MODEL', 'SYNC_OPENAI_MODEL') || 'gpt-4o-mini';
   const srcLabel = mapLang(src, 'openai');
   const tgtLabel = mapLang(tgt, 'openai');
 
@@ -107,7 +108,7 @@ async function translateWithOpenAI(text, src, tgt) {
 }
 
 function providerChain() {
-  const preferred = (process.env.TRANSLATE_PROVIDER || 'mymemory').toLowerCase();
+  const preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'mymemory').toLowerCase();
   const chain = [];
 
   const push = (name, fn, available) => {
@@ -116,8 +117,8 @@ function providerChain() {
 
   // 優先使用設定的引擎，其餘作備援
   const catalog = {
-    deepl: { fn: translateWithDeepL, available: String(process.env.DEEPL_API_KEY || '').trim().length > 0 },
-    openai: { fn: translateWithOpenAI, available: String(process.env.OPENAI_API_KEY || '').trim().length > 0 },
+    deepl: { fn: translateWithDeepL, available: envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY') },
+    openai: { fn: translateWithOpenAI, available: envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY') },
     mymemory: { fn: translateWithMyMemory, available: true },
   };
 
