@@ -66,7 +66,8 @@ app.get('/health', (_req, res) => {
   const stats = rooms.stats();
   const openaiKey = envGet('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY');
   const deeplKey = envGet('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY');
-  const provider = envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)';
+  const configuredProvider = envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)';
+  const activeProviders = providerChain().map((p) => p.name);
 
   // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務／未 Deploy staged
   const relatedEnvNames = Object.keys(process.env)
@@ -78,9 +79,10 @@ app.get('/health', (_req, res) => {
     uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
     rooms: stats.rooms,
     sockets: stats.sockets,
-    translateProviders: providerChain().map((p) => p.name),
+    translateProviders: activeProviders,
+    preferredProvider: activeProviders[0] || 'mymemory',
     env: {
-      TRANSLATE_PROVIDER: provider,
+      TRANSLATE_PROVIDER: configuredProvider,
       hasOpenAIKey: openaiKey.length > 0,
       hasDeepLKey: deeplKey.length > 0,
       TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
@@ -88,7 +90,9 @@ app.get('/health', (_req, res) => {
       hint:
         openaiKey.length === 0
           ? 'OpenAI key missing in runtime. On Railway canvas, open purple Staged changes → Deploy (not Redeploy).'
-          : 'ok',
+          : configuredProvider === '(unset)'
+            ? 'Key loaded. TRANSLATE_PROVIDER unset — auto-prefer openai when key present.'
+            : 'ok',
     },
   });
 });

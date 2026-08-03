@@ -108,7 +108,13 @@ async function translateWithOpenAI(text, src, tgt) {
 }
 
 function providerChain() {
-  const preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'mymemory').toLowerCase();
+  // 有正式引擎 Key 卻未設 PROVIDER 時，自動優先用正式引擎（避免卡在 mymemory）
+  let preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '').toLowerCase();
+  if (!preferred) {
+    if (envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY')) preferred = 'openai';
+    else if (envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY')) preferred = 'deepl';
+    else preferred = 'mymemory';
+  }
   const chain = [];
 
   const push = (name, fn, available) => {
