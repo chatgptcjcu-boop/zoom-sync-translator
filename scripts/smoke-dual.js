@@ -77,7 +77,7 @@ async function main() {
   b.close();
 
   const providers = h.translateProviders || [];
-  const formal = providers.some((p) => p === 'deepl' || p === 'openai');
+  const formal = providers.some((p) => p === 'deepl' || p === 'openai' || p === 'gemini');
   console.log('[smoke] formal engine ready:', formal ? 'YES' : 'NO (still mymemory-only)');
   console.log('[smoke] OK');
   process.exit(0);

@@ -65,6 +65,7 @@ npm start
 | [docs/RAILWAY-運作規格書.md](./docs/RAILWAY-運作規格書.md) | 整體運作規格 |
 | [docs/M1-Railway部署指南.md](./docs/M1-Railway部署指南.md) | 部署 |
 | [docs/M2-DeepL接線.md](./docs/M2-DeepL接線.md) | DeepL |
+| [docs/M2-Gemini接線.md](./docs/M2-Gemini接線.md) | **Gemini API 翻譯** |
 | [docs/M3-彩排SOP.md](./docs/M3-彩排SOP.md) | 彩排 |
 | [docs/M4-實戰Runbook.md](./docs/M4-實戰Runbook.md) | 實戰 |
 

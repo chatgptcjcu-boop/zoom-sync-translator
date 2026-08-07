@@ -1,16 +1,26 @@
 /**
- * 翻譯提供者：MyMemory（免費測試）/ DeepL / OpenAI
+ * 翻譯提供者：MyMemory（免費測試）/ DeepL / OpenAI / Gemini
  * 失敗時自動降級到下一個可用引擎。
  */
 const axios = require('axios');
 const { envGet, envHas } = require('./env');
 
 const LANG_MAP = {
-  'zh-TW': { mymemory: 'zh-TW', deepl: 'ZH', openai: 'Traditional Chinese (Taiwan)' },
-  'zh-CN': { mymemory: 'zh-CN', deepl: 'ZH', openai: 'Simplified Chinese' },
-  'ja-JP': { mymemory: 'ja', deepl: 'JA', openai: 'Japanese' },
-  'en-US': { mymemory: 'en', deepl: 'EN', openai: 'English' },
-  'en-GB': { mymemory: 'en', deepl: 'EN-GB', openai: 'British English' },
+  'zh-TW': {
+    mymemory: 'zh-TW',
+    deepl: 'ZH',
+    openai: 'Traditional Chinese (Taiwan)',
+    gemini: 'Traditional Chinese (Taiwan)',
+  },
+  'zh-CN': {
+    mymemory: 'zh-CN',
+    deepl: 'ZH',
+    openai: 'Simplified Chinese',
+    gemini: 'Simplified Chinese',
+  },
+  'ja-JP': { mymemory: 'ja', deepl: 'JA', openai: 'Japanese', gemini: 'Japanese' },
+  'en-US': { mymemory: 'en', deepl: 'EN', openai: 'English', gemini: 'English' },
+  'en-GB': { mymemory: 'en', deepl: 'EN-GB', openai: 'British English', gemini: 'British English' },
 };
 
 function sleep(ms) {
@@ -107,11 +117,58 @@ async function translateWithOpenAI(text, src, tgt) {
   return translated;
 }
 
+async function translateWithGemini(text, src, tgt) {
+  const key = envGet('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY');
+  if (!key) throw new Error('Gemini: missing GEMINI_API_KEY');
+
+  const model = envGet('GEMINI_MODEL', 'SYNC_GEMINI_MODEL') || 'gemini-2.0-flash';
+  const srcLabel = mapLang(src, 'gemini');
+  const tgtLabel = mapLang(tgt, 'gemini');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+
+  const { data } = await axios.post(
+    url,
+    {
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            {
+              text:
+                `You are a professional meeting interpreter. Translate from ${srcLabel} to ${tgtLabel}. ` +
+                'Return only the translation. Keep names, numbers, and technical terms accurate. No quotes or commentary.\n\n' +
+                text,
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.2,
+      },
+    },
+    {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key,
+      },
+      timeout: 15000,
+    }
+  );
+
+  const translated = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim();
+  if (!translated) {
+    const blocked = data?.promptFeedback?.blockReason;
+    throw new Error(blocked ? `Gemini: blocked (${blocked})` : 'Gemini: empty translation');
+  }
+  return translated;
+}
+
 function providerChain() {
   // 有正式引擎 Key 卻未設 PROVIDER 時，自動優先用正式引擎（避免卡在 mymemory）
   let preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '').toLowerCase();
   if (!preferred) {
-    if (envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY')) preferred = 'openai';
+    if (envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY')) preferred = 'gemini';
+    else if (envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY')) preferred = 'openai';
     else if (envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY')) preferred = 'deepl';
     else preferred = 'mymemory';
   }
@@ -123,6 +180,10 @@ function providerChain() {
 
   // 優先使用設定的引擎，其餘作備援
   const catalog = {
+    gemini: {
+      fn: translateWithGemini,
+      available: envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY'),
+    },
     deepl: { fn: translateWithDeepL, available: envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY') },
     openai: { fn: translateWithOpenAI, available: envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY') },
     mymemory: { fn: translateWithMyMemory, available: true },
