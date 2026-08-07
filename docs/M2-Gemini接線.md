@@ -17,7 +17,7 @@
 ```
 TRANSLATE_PROVIDER=gemini
 GEMINI_API_KEY=你的金鑰
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 ```bash
@@ -41,7 +41,7 @@ translate('大家好，歡迎參加會議','zh-TW','ja-JP').then(console.log).ca
 ```
 TRANSLATE_PROVIDER=gemini
 GEMINI_API_KEY=你的金鑰
-GEMINI_MODEL=gemini-2.0-flash
+GEMINI_MODEL=gemini-2.5-flash
 TRUST_PROXY=1
 ```
 

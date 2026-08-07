@@ -121,7 +121,7 @@ async function translateWithGemini(text, src, tgt) {
   const key = envGet('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY');
   if (!key) throw new Error('Gemini: missing GEMINI_API_KEY');
 
-  const model = envGet('GEMINI_MODEL', 'SYNC_GEMINI_MODEL') || 'gemini-2.0-flash';
+  const model = envGet('GEMINI_MODEL', 'SYNC_GEMINI_MODEL') || 'gemini-2.5-flash';
   const srcLabel = mapLang(src, 'gemini');
   const tgtLabel = mapLang(tgt, 'gemini');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
