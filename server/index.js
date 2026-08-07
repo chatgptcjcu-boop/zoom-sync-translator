@@ -89,6 +89,9 @@ app.get('/health', (_req, res) => {
       hasDeepLKey: deeplKey.length > 0,
       TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
       relatedEnvNames,
+      railwayDeploymentId: process.env.RAILWAY_DEPLOYMENT_ID || '(unset)',
+      railwayReplicaId: process.env.RAILWAY_REPLICA_ID || '(unset)',
+      railwayServiceName: process.env.RAILWAY_SERVICE_NAME || '(unset)',
       hint: geminiKey
         ? 'ok — Gemini primary'
         : 'Set GEMINI_API_KEY (primary engine). OpenAI/DeepL are optional fallbacks only if TRANSLATE_PROVIDER is not gemini.',
