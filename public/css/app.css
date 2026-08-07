@@ -71,11 +71,72 @@ button, input, select {
   line-height: 1.6;
 }
 
+.badge-guest {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: #0b1220;
+  background: var(--mine);
+  font-weight: 600;
+}
+
 .field {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-bottom: 16px;
+}
+
+.sub-label {
+  margin-top: 8px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.billing-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.billing-option {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.billing-option:has(input:checked) {
+  border-color: rgba(45, 212, 168, 0.55);
+  background: rgba(45, 212, 168, 0.08);
+}
+
+.billing-option strong {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.billing-option small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.hint.tight {
+  margin: 4px 0 0;
+  font-size: 0.8rem;
+}
+
+.hint a {
+  color: var(--mine);
 }
 
 .field label {

@@ -60,7 +60,15 @@ function escapePlain(text) {
 }
 
 app.use(express.json({ limit: '32kb' }));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+
+const publicDir = path.join(__dirname, '..', 'public');
+
+// 訪客測試專用入口（強制自備 API；主辦首頁 / 不變）
+app.get(['/guest', '/guest/'], (_req, res) => {
+  res.sendFile(path.join(publicDir, 'guest.html'));
+});
+
+app.use(express.static(publicDir));
 
 app.get('/health', (_req, res) => {
   const stats = rooms.stats();
@@ -72,8 +80,13 @@ app.get('/health', (_req, res) => {
 
   // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務／未 Deploy staged
   const relatedEnvNames = Object.keys(process.env)
-    .filter((k) => /^(OPENAI|DEEPL|GEMINI|GOOGLE_API|TRANSLATE|SYNC_|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k))
+    .filter((k) =>
+      /^(OPENAI|DEEPL|GEMINI|GOOGLE_API|TRANSLATE|REQUIRE_|SYNC_|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k)
+    )
     .sort();
+
+  const requireClientApiKey =
+    String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true';
 
   res.json({
     ok: true,
@@ -87,14 +100,17 @@ app.get('/health', (_req, res) => {
       hasGeminiKey: geminiKey.length > 0,
       hasOpenAIKey: openaiKey.length > 0,
       hasDeepLKey: deeplKey.length > 0,
+      requireClientApiKey,
       TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
       relatedEnvNames,
       railwayDeploymentId: process.env.RAILWAY_DEPLOYMENT_ID || '(unset)',
       railwayReplicaId: process.env.RAILWAY_REPLICA_ID || '(unset)',
       railwayServiceName: process.env.RAILWAY_SERVICE_NAME || '(unset)',
-      hint: geminiKey
-        ? 'ok — Gemini primary'
-        : 'Set GEMINI_API_KEY (primary engine). OpenAI/DeepL are optional fallbacks only if TRANSLATE_PROVIDER is not gemini.',
+      hint: requireClientApiKey
+        ? 'Guests must enter their own Gemini API Key on the lobby (BYOK).'
+        : geminiKey
+          ? 'ok — Gemini primary; guests can choose BYOK on lobby to avoid using host quota'
+          : 'Set GEMINI_API_KEY for host quota, or REQUIRE_CLIENT_API_KEY=true so everyone brings their own key.',
     },
   });
 });
@@ -103,6 +119,10 @@ app.get('/api/config', (_req, res) => {
   res.json({
     defaultProvider: envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'gemini',
     providers: providerChain().map((p) => p.name),
+    requireClientApiKey: String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true',
+    byokEnabled: true,
+    guestEntryPath: '/guest',
+    hostEntryPath: '/',
   });
 });
 
@@ -137,16 +157,71 @@ io.on('connection', (socket) => {
         targetLang: payload.targetLang || 'ja-JP',
       };
 
+      // 訪客通道 /guest：強制自備 Key，永不使用主辦方伺服器額度
+      const guestLane = payload.guestLane === true || payload.guestLane === 'true';
+      const clientKey = String(payload.apiKey || '').trim();
+      const forceByok =
+        guestLane || String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true';
+
+      socket.data.translator = {
+        mode: clientKey ? 'byok' : 'server',
+        apiKey: clientKey ? clientKey.slice(0, 200) : '',
+        model: String(payload.apiModel || 'gemini-2.5-flash').trim().slice(0, 80),
+        provider: 'gemini',
+        guestLane: !!guestLane,
+      };
+
+      if (forceByok && !clientKey) {
+        if (typeof ack === 'function') {
+          ack({
+            ok: false,
+            error: guestLane
+              ? '訪客測試通道需輸入自己的 Gemini API Key'
+              : '此站需自行輸入 Gemini API Key 才能進入',
+          });
+        }
+        return;
+      }
+
+      // 訪客通道即使誤帶空 key 也不准退回 server mode
+      if (guestLane) {
+        socket.data.translator.mode = 'byok';
+      }
+
       const snapshot = rooms.join(roomId, socket.id, socket.data.profile);
       io.to(roomId).emit('room_update', snapshot);
 
-      console.log(`[房間] ${socket.data.profile.displayName} → ${roomId}`);
+      console.log(
+        `[房間] ${socket.data.profile.displayName} → ${roomId} (translate=${socket.data.translator.mode}${guestLane ? ',guest' : ''})`
+      );
       if (typeof ack === 'function') {
-        ack({ ok: true, roomId, snapshot, selfId: socket.id });
+        ack({
+          ok: true,
+          roomId,
+          snapshot,
+          selfId: socket.id,
+          translateMode: socket.data.translator.mode,
+          guestLane: !!guestLane,
+        });
       }
     } catch (err) {
       console.error('[join_room]', err);
       if (typeof ack === 'function') ack({ ok: false, error: err.message });
+    }
+  });
+
+  socket.on('update_translator', (payload = {}, ack) => {
+    const clientKey = String(payload.apiKey || '').trim();
+    socket.data.translator = {
+      mode: clientKey ? 'byok' : 'server',
+      apiKey: clientKey ? clientKey.slice(0, 200) : '',
+      model: String(payload.apiModel || socket.data.translator?.model || 'gemini-2.5-flash')
+        .trim()
+        .slice(0, 80),
+      provider: 'gemini',
+    };
+    if (typeof ack === 'function') {
+      ack({ ok: true, translateMode: socket.data.translator.mode });
     }
   });
 
@@ -187,10 +262,14 @@ io.on('connection', (socket) => {
       translatedText: null,
     });
 
-    // 2) 佇列翻譯後廣播結果
+    // 2) 佇列翻譯後廣播結果（優先使用該使用者自帶的 API Key）
     enqueueTranslate(roomId, async () => {
       try {
-        const result = await translate(text, sourceLang, targetLang);
+        const t = socket.data.translator || {};
+        const result = await translate(text, sourceLang, targetLang, {
+          apiKey: t.mode === 'byok' ? t.apiKey : '',
+          model: t.model,
+        });
         const translatedText = escapePlain(result.text);
         rooms.updateTranslation(roomId, msgId, translatedText, result.provider);
 
@@ -199,7 +278,9 @@ io.on('connection', (socket) => {
           translatedText,
           provider: result.provider,
         });
-        console.log(`[翻譯][${result.provider}] ${roomId}: ${text.slice(0, 40)} → ${result.text.slice(0, 40)}`);
+        console.log(
+          `[翻譯][${result.provider}] ${roomId}: ${text.slice(0, 40)} → ${result.text.slice(0, 40)}`
+        );
       } catch (error) {
         console.error(`[翻譯失敗] ${roomId}`, error.message);
         const fallback = `[翻譯失敗] ${escapePlain(text)}`;

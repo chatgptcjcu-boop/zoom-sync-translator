@@ -16,6 +16,11 @@
     enterBtn: $('enterBtn'),
     roleTw: $('roleTw'),
     roleJp: $('roleJp'),
+    billingHost: $('billingHost'),
+    billingByok: $('billingByok'),
+    byokFields: $('byokFields'),
+    clientApiKey: $('clientApiKey'),
+    clientApiModel: $('clientApiModel'),
     topbar: $('topbar'),
     connDot: $('connDot'),
     roomLabel: $('roomLabel'),
@@ -44,6 +49,15 @@
     selfId: null,
     roomId: '',
     displayName: '',
+    billingMode: 'host',
+    apiKey: '',
+    apiModel: 'gemini-2.5-flash',
+    translateMode: 'server',
+    requireClientApiKey: false,
+    guestLane: !!(
+      window.__SYNCSUB_GUEST__ ||
+      /^\/guest\/?$/.test(location.pathname)
+    ),
     isRecording: false,
     recognition: null,
     restartTimer: null,
@@ -73,13 +87,23 @@
   els.roleTw.addEventListener('click', () => setRole('tw'));
   els.roleJp.addEventListener('click', () => setRole('jp'));
 
+  // 訪客通道：固定 BYOK；主辦首頁：固定伺服器額度
+  if (state.guestLane && els.billingByok) {
+    els.billingByok.checked = true;
+    state.billingMode = 'byok';
+    state.requireClientApiKey = true;
+  } else if (els.billingHost) {
+    els.billingHost.checked = true;
+    state.billingMode = 'host';
+  }
+
   // 從 URL 預填：?room=xxx&role=jp&name=Tanaka
   (function hydrateFromQuery() {
     const q = new URLSearchParams(location.search);
     if (q.get('room')) els.roomId.value = q.get('room');
     if (q.get('name')) els.displayName.value = q.get('name');
     if (q.get('role') === 'jp') setRole('jp');
-    if (q.get('server')) els.serverUrl.value = q.get('server');
+    if (q.get('server') && els.serverUrl) els.serverUrl.value = q.get('server');
   })();
 
   els.enterBtn.addEventListener('click', enterRoom);
@@ -92,8 +116,18 @@
       return;
     }
 
+    const byok = state.guestLane || els.billingByok?.checked;
+    const apiKey = (els.clientApiKey?.value || '').trim();
+    if (byok && !apiKey) {
+      alert(state.guestLane ? '訪客測試通道請輸入自己的 Gemini API Key' : '請輸入 Gemini API Key');
+      return;
+    }
+
     state.roomId = roomId;
     state.displayName = displayName;
+    state.billingMode = byok ? 'byok' : 'host';
+    state.apiKey = byok ? apiKey : '';
+    state.apiModel = els.clientApiModel?.value || 'gemini-2.5-flash';
     setRole(state.role);
 
     els.lobby.classList.add('hidden');
@@ -184,20 +218,32 @@
         role: state.role,
         myLang: els.myLang.value,
         targetLang: els.targetLang.value,
+        apiKey: state.apiKey || '',
+        apiModel: state.apiModel || 'gemini-2.5-flash',
+        guestLane: !!state.guestLane,
       },
       (res) => {
         if (!res?.ok) {
           showDebug(res?.error || '加入房間失敗');
+          els.room.classList.add('hidden');
+          els.lobby.classList.remove('hidden');
           return;
         }
         state.selfId = res.selfId;
+        state.translateMode = res.translateMode || (state.apiKey ? 'byok' : 'server');
         renderMembers(res.snapshot?.members || []);
-        showDebug(`已加入房間 ${res.roomId}`);
-        // 更新分享連結
-        const share = new URL(location.href);
-        share.searchParams.set('room', state.roomId);
-        share.searchParams.set('role', state.role === 'tw' ? 'jp' : 'tw');
-        history.replaceState(null, '', `?room=${encodeURIComponent(state.roomId)}&role=${state.role}`);
+        const modeLabel = state.guestLane
+          ? '訪客通道｜自備 Gemini Key'
+          : state.translateMode === 'byok'
+            ? '翻譯：自備 Gemini Key'
+            : '翻譯：主辦方伺服器額度';
+        showDebug(`已加入房間 ${res.roomId}｜${modeLabel}`);
+        setConn('live', modeLabel);
+        const shareParams = new URLSearchParams();
+        shareParams.set('room', state.roomId);
+        shareParams.set('role', state.role);
+        const basePath = state.guestLane ? '/guest' : '/';
+        history.replaceState(null, '', `${basePath}?${shareParams.toString()}`);
       }
     );
   }

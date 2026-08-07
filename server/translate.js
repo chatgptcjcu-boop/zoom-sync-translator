@@ -117,11 +117,13 @@ async function translateWithOpenAI(text, src, tgt) {
   return translated;
 }
 
-async function translateWithGemini(text, src, tgt) {
-  const key = envGet('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY');
+async function translateWithGemini(text, src, tgt, opts = {}) {
+  const key = String(opts.apiKey || envGet('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY') || '').trim();
   if (!key) throw new Error('Gemini: missing GEMINI_API_KEY');
 
-  const model = envGet('GEMINI_MODEL', 'SYNC_GEMINI_MODEL') || 'gemini-2.5-flash';
+  const model =
+    String(opts.model || envGet('GEMINI_MODEL', 'SYNC_GEMINI_MODEL') || 'gemini-2.5-flash').trim() ||
+    'gemini-2.5-flash';
   const srcLabel = mapLang(src, 'gemini');
   const tgtLabel = mapLang(tgt, 'gemini');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
@@ -204,17 +206,47 @@ function providerChain() {
 
 /**
  * 帶重試與自動降級的翻譯入口
+ * opts.apiKey / opts.model：訪客自帶 Key（BYOK），只走 Gemini，不消耗主辦方額度
  */
-async function translate(text, sourceLang, targetLang) {
+async function translate(text, sourceLang, targetLang, opts = {}) {
   const clean = String(text || '').trim();
   if (!clean) return '';
 
   if (sourceLang === targetLang) return clean;
 
   const retries = Math.max(0, Number(process.env.TRANSLATE_RETRIES || 2));
-  const chain = providerChain();
   const errors = [];
+  const clientKey = String(opts.apiKey || '').trim();
 
+  // BYOK：只用訪客自己的 Gemini Key（失敗可降級 MyMemory，仍不碰主辦方 Key）
+  if (clientKey) {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const result = await translateWithGemini(clean, sourceLang, targetLang, {
+          apiKey: clientKey,
+          model: opts.model,
+        });
+        return { text: result, provider: 'gemini-byok' };
+      } catch (err) {
+        errors.push(`gemini-byok#${attempt}: ${err.message}`);
+        if (attempt < retries) await sleep(300 * (attempt + 1));
+      }
+    }
+    try {
+      const result = await translateWithMyMemory(clean, sourceLang, targetLang);
+      return { text: result, provider: 'mymemory' };
+    } catch (err) {
+      errors.push(`mymemory: ${err.message}`);
+      throw new Error(`BYOK translators failed: ${errors.join(' | ')}`);
+    }
+  }
+
+  // 禁止使用主辦方伺服器 Key（開放測試模式）
+  if (String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true') {
+    throw new Error('請在頁面輸入自己的 Gemini API Key（此站不提供主辦方額度）');
+  }
+
+  const chain = providerChain();
   for (const provider of chain) {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {

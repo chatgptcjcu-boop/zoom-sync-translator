@@ -3,28 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zoom 雙邊同步翻譯字幕</title>
+  <title>SyncSub 訪客測試（自備 API）</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/app.css" />
   <script src="/socket.io/socket.io.js"></script>
+  <script>window.__SYNCSUB_GUEST__ = true;</script>
 </head>
 <body>
-  <!-- 大廳：主辦方自用（伺服器額度） -->
   <section id="lobby" class="lobby">
     <div class="lobby-card">
-      <h1 class="brand">Sync<span>Sub</span> Meeting</h1>
-      <p class="lead">雙邊同步翻譯字幕會議室。與日本教授開 Zoom 時，雙方用 Chrome 開啟同一房號，各自收音、即時互看字幕。</p>
+      <p class="badge-guest">訪客測試通道 · 不會消耗主辦方 API</p>
+      <h1 class="brand">Sync<span>Sub</span> Guest</h1>
+      <p class="lead">此頁專供外部測試。請輸入<strong>你自己的</strong> Gemini API Key；翻譯只打你的額度，不會使用站長的 Key。</p>
 
       <div class="field">
         <label for="displayName">顯示名稱</label>
-        <input id="displayName" type="text" maxlength="40" placeholder="例如：張老師 / 田中教授" />
+        <input id="displayName" type="text" maxlength="40" placeholder="例如：測試者 A" />
       </div>
 
       <div class="field">
         <label for="roomId">會議房號（雙方相同）</label>
-        <input id="roomId" type="text" maxlength="64" value="meeting-001" />
+        <input id="roomId" type="text" maxlength="64" value="guest-demo" />
       </div>
 
       <div class="field">
@@ -41,38 +42,45 @@
         </div>
       </div>
 
-      <div class="field">
-        <label for="serverUrl">中繼站位址（本機預設即可）</label>
-        <input id="serverUrl" type="text" value="" placeholder="空白 = 目前這個網站" />
+      <div class="field hidden">
+        <label for="serverUrl">中繼站位址</label>
+        <input id="serverUrl" type="text" value="" />
       </div>
 
-      <!-- 主辦頁固定用伺服器額度；保留隱藏欄位供 app.js -->
+      <!-- 訪客通道固定 BYOK；保留隱藏 radio 供 app.js 讀取 -->
       <div class="field hidden" id="billingField">
-        <input type="radio" name="billingMode" id="billingHost" value="host" checked />
-        <input type="radio" name="billingMode" id="billingByok" value="byok" />
-      </div>
-      <div class="field hidden" id="byokFields">
-        <input id="clientApiKey" type="password" maxlength="200" />
-        <select id="clientApiModel">
-          <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
-        </select>
+        <input type="radio" name="billingMode" id="billingHost" value="host" />
+        <input type="radio" name="billingMode" id="billingByok" value="byok" checked />
       </div>
 
-      <button type="button" class="primary-btn" id="enterBtn">進入會議室</button>
+      <div class="field" id="byokFields">
+        <label for="clientApiKey">你的 Gemini API Key（必填）</label>
+        <input id="clientApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza..." maxlength="200" />
+        <label for="clientApiModel" class="sub-label">模型（可選）</label>
+        <select id="clientApiModel">
+          <option value="gemini-2.5-flash" selected>gemini-2.5-flash（建議）</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+          <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+        </select>
+        <p class="hint tight">
+          免費申請：<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+          → Create API key。金鑰只經 HTTPS 送到中繼站，不廣播給對方、不寫日誌。
+        </p>
+      </div>
+
+      <button type="button" class="primary-btn" id="enterBtn">進入測試會議室</button>
       <p class="hint">
-        使用方式：雙方各開一個 Chrome 視窗放在 Zoom 旁邊 → 輸入相同房號 → 按「開始收音」。<br />
-        需使用 Chrome / Edge，並允許麥克風。此頁使用主辦方伺服器翻譯額度。<br />
-        若要給<strong>別人測試</strong>且不想消耗你的 API，請改傳訪客網址 <code>/guest</code>。
+        測試雙方請都用<strong>本頁網址</strong>（/guest），並輸入各自的 API Key 與相同房號。<br />
+        主辦方自己開會請用首頁，勿把首頁網址給外部測試者。
       </p>
     </div>
   </section>
 
-  <!-- 會議室 -->
   <section id="room" class="room hidden">
     <header id="topbar" class="topbar">
       <div class="brand-mini">
         <i id="connDot" class="dot warn"></i>
-        <span>SyncSub</span>
+        <span>SyncSub Guest</span>
         <span id="roomLabel" style="color:var(--muted);font-weight:500;font-size:0.9rem"></span>
       </div>
 

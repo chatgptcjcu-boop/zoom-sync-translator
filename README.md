@@ -83,16 +83,24 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 | 變數 | 說明 |
 |------|------|
 | `TRANSLATE_PROVIDER` | **`gemini`（預設／正式）** / `deepl` / `openai` / `mymemory` |
-| `GEMINI_API_KEY` | Google AI Studio Key（首選） |
+| `GEMINI_API_KEY` | Google AI Studio Key（主辦方額度） |
 | `GEMINI_MODEL` | 預設 `gemini-2.5-flash` |
+| `REQUIRE_CLIENT_API_KEY` | 選用；一般用 `/guest` 即可，不必開這個 |
 | `DEEPL_API_KEY` | 選用備援 |
 | `OPENAI_API_KEY` | 選用備援（`TRANSLATE_PROVIDER` 非 gemini 時才會進鏈） |
-| `DEEPL_API_KEY` | 日⇄中會議首選 |
-| `OPENAI_API_KEY` | 語境較好的備援 |
 | `CORS_ORIGIN` | 正式環境改成你的網域，不要用 `*` |
 | `TRUST_PROXY` | 放在反向代理後設 `1` |
 
 翻譯會依「主引擎 → 備援引擎」自動降級；單房間有佇列，避免瞬間打爆 API。
+
+**兩組網址（同一服務，首頁設定不用改）：**
+
+| 對象 | 網址 | 額度 |
+|------|------|------|
+| 你自己 | `https://zoom-sync-translator-production.up.railway.app/` | 主辦方 Gemini |
+| 給別人測試 | `https://zoom-sync-translator-production.up.railway.app/guest` | 測試者自備 Key |
+
+詳見 [docs/BYOK-自備APIKey.md](./docs/BYOK-自備APIKey.md)。
 
 ---
 
