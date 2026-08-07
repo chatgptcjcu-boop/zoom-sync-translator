@@ -1,0 +1,3 @@
+# SyncSub — prefer Nixpacks so Railway Variables inject at runtime
+[start]
+cmd = "npm start"
