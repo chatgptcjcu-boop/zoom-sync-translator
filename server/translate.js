@@ -164,37 +164,39 @@ async function translateWithGemini(text, src, tgt) {
 }
 
 function providerChain() {
-  // 有正式引擎 Key 卻未設 PROVIDER 時，自動優先用正式引擎（避免卡在 mymemory）
-  let preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '').toLowerCase();
-  if (!preferred) {
-    if (envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY')) preferred = 'gemini';
-    else if (envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY')) preferred = 'openai';
-    else if (envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY')) preferred = 'deepl';
-    else preferred = 'mymemory';
-  }
+  // 預設一律走 Gemini（可用 GEMINI_API_KEY / GOOGLE_API_KEY）
+  let preferred = (envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'gemini').toLowerCase();
   const chain = [];
 
   const push = (name, fn, available) => {
     if (available) chain.push({ name, fn });
   };
 
-  // 優先使用設定的引擎，其餘作備援
   const catalog = {
     gemini: {
       fn: translateWithGemini,
       available: envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY'),
     },
-    deepl: { fn: translateWithDeepL, available: envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY') },
     openai: { fn: translateWithOpenAI, available: envHas('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY') },
+    deepl: { fn: translateWithDeepL, available: envHas('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY') },
     mymemory: { fn: translateWithMyMemory, available: true },
   };
 
+  // 主引擎
   if (catalog[preferred]) {
     push(preferred, catalog[preferred].fn, catalog[preferred].available);
+  } else {
+    push('gemini', catalog.gemini.fn, catalog.gemini.available);
   }
-  for (const [name, item] of Object.entries(catalog)) {
-    if (name === preferred) continue;
-    push(name, item.fn, item.available);
+
+  // Gemini 為主時：只保留 MyMemory 當緊急備援，避免無額度的 OpenAI 拖慢會議
+  if (preferred === 'gemini') {
+    push('mymemory', catalog.mymemory.fn, true);
+  } else {
+    for (const [name, item] of Object.entries(catalog)) {
+      if (name === preferred) continue;
+      push(name, item.fn, item.available);
+    }
   }
 
   return chain.length ? chain : [{ name: 'mymemory', fn: translateWithMyMemory }];

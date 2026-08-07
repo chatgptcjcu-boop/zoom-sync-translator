@@ -32,7 +32,7 @@ curl -s https://{DOMAIN}/health
 npm run smoke -- https://{DOMAIN}
 ```
 
-- [ ] health `ok: true`，providers 含 `deepl`  
+- [ ] health `ok: true`，providers 含 `gemini`  
 - [ ] smoke OK  
 - [ ] 關閉會搶麥的軟體；選對 Chrome 麥克風裝置  
 

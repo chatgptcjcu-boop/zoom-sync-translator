@@ -67,7 +67,7 @@ app.get('/health', (_req, res) => {
   const openaiKey = envGet('OPENAI_API_KEY', 'SYNC_OPENAI_API_KEY');
   const deeplKey = envGet('DEEPL_API_KEY', 'SYNC_DEEPL_API_KEY');
   const geminiKey = envGet('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY');
-  const configuredProvider = envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)';
+  const configuredProvider = envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'gemini';
   const activeProviders = providerChain().map((p) => p.name);
 
   // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務／未 Deploy staged
@@ -81,7 +81,7 @@ app.get('/health', (_req, res) => {
     rooms: stats.rooms,
     sockets: stats.sockets,
     translateProviders: activeProviders,
-    preferredProvider: activeProviders[0] || 'mymemory',
+    preferredProvider: activeProviders[0] || 'gemini',
     env: {
       TRANSLATE_PROVIDER: configuredProvider,
       hasGeminiKey: geminiKey.length > 0,
@@ -89,19 +89,16 @@ app.get('/health', (_req, res) => {
       hasDeepLKey: deeplKey.length > 0,
       TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
       relatedEnvNames,
-      hint:
-        geminiKey || openaiKey || deeplKey
-          ? configuredProvider === '(unset)'
-            ? 'Formal key loaded; TRANSLATE_PROVIDER unset — auto-prefer gemini/openai/deepl.'
-            : 'ok'
-          : 'No formal translate key. Set GEMINI_API_KEY or OPENAI_API_KEY, then Deploy staged changes on Railway.',
+      hint: geminiKey
+        ? 'ok — Gemini primary'
+        : 'Set GEMINI_API_KEY (primary engine). OpenAI/DeepL are optional fallbacks only if TRANSLATE_PROVIDER is not gemini.',
     },
   });
 });
 
 app.get('/api/config', (_req, res) => {
   res.json({
-    defaultProvider: envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'mymemory',
+    defaultProvider: envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'gemini',
     providers: providerChain().map((p) => p.name),
   });
 });

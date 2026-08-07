@@ -50,7 +50,7 @@ npm start
 ## 正式會議建議流程
 
 1. 部署中繼站到有 **HTTPS** 的雲端（**首選 Railway**／Fly.io／VPS + Nginx）。  
-2. 在 `.env` 設定 `TRANSLATE_PROVIDER=deepl` 或 `openai`，並填入 API Key。  
+2. 在 `.env`／Railway 設定 **`TRANSLATE_PROVIDER=gemini`** 與 `GEMINI_API_KEY`（正式會議首選）。  
 3. 把網址傳給教授，例如：  
    - 你：`https://你的網域/?room=mtg-0320&role=tw&name=張老師`  
    - 對方：`https://你的網域/?room=mtg-0320&role=jp&name=田中`  
@@ -82,7 +82,11 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 
 | 變數 | 說明 |
 |------|------|
-| `TRANSLATE_PROVIDER` | `mymemory`（免費測試）/ `deepl` / `openai` |
+| `TRANSLATE_PROVIDER` | **`gemini`（預設／正式）** / `deepl` / `openai` / `mymemory` |
+| `GEMINI_API_KEY` | Google AI Studio Key（首選） |
+| `GEMINI_MODEL` | 預設 `gemini-2.5-flash` |
+| `DEEPL_API_KEY` | 選用備援 |
+| `OPENAI_API_KEY` | 選用備援（`TRANSLATE_PROVIDER` 非 gemini 時才會進鏈） |
 | `DEEPL_API_KEY` | 日⇄中會議首選 |
 | `OPENAI_API_KEY` | 語境較好的備援 |
 | `CORS_ORIGIN` | 正式環境改成你的網域，不要用 `*` |

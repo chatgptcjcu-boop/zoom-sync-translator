@@ -34,9 +34,10 @@ gh repo create zoom-sync-translator --private --source=. --remote=origin --push
 
 ```
 TRUST_PROXY=1
-TRANSLATE_PROVIDER=mymemory
-TRANSLATE_RETRIES=2
-CORS_ORIGIN=*
+TRANSLATE_PROVIDER=gemini
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-2.5-flash
+TRUST_PROXY=1
 ```
 
 （M2 再改成 DeepL 並填 Key）
@@ -52,7 +53,7 @@ cd /Users/apple/Documents/zoom-sync-translator
 npx railway login
 npx railway init
 npx railway up
-npx railway variables set TRUST_PROXY=1 TRANSLATE_PROVIDER=mymemory
+npx railway variables set TRUST_PROXY=1 TRANSLATE_PROVIDER=gemini GEMINI_MODEL=gemini-2.5-flash
 npx railway domain
 ```
 

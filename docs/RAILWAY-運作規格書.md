@@ -112,8 +112,9 @@
 
 | 環境 | Provider | 備註 |
 |------|----------|------|
-| 本機／開發 | `mymemory` | 免費、有日配額 |
-| Railway 正式會議 | `deepl`（首選）或 `openai` | 日⇄中品質與穩定度 |
+| 本機／Railway | **`gemini`（首選）** | Google AI Studio API |
+| 緊急備援 | `mymemory` | 僅 Gemini 失敗時 |
+| 選用 | `deepl` / `openai` | 需把 `TRANSLATE_PROVIDER` 改成對應值 |
 | 失敗處理 | 重試 N 次 → 降級下一引擎 → 回傳「翻譯失敗」標記 | 不中斷會議室連線 |
 
 每房維持**序列翻譯佇列**，避免瞬間打爆 API。
@@ -161,7 +162,9 @@
 |------|------|------------|
 | `PORT` | 自動 | Railway 注入，勿寫死 |
 | `TRUST_PROXY` | 是 | `1` |
-| `TRANSLATE_PROVIDER` | 是 | `deepl` |
+| `TRANSLATE_PROVIDER` | 是 | `gemini` |
+| `GEMINI_API_KEY` | 正式是 | AI Studio 金鑰 |
+| `GEMINI_MODEL` | 建議 | `gemini-2.5-flash` |
 | `DEEPL_API_KEY` | 正式是 | DeepL 金鑰 |
 | `DEEPL_API_URL` | 視方案 | Free: `https://api-free.deepl.com`；Pro: `https://api.deepl.com` |
 | `OPENAI_API_KEY` | 選用 | 作備援引擎 |
@@ -335,7 +338,7 @@
 
 以下全部通過才可將 Railway 網址交給外部與會者：
 
-- [ ] `GET /health` → `ok: true`，且 `translateProviders` 含 `deepl` 或 `openai`  
+- [ ] `GET /health` → `ok: true`，且 `translateProviders` 含 `gemini`、`hasGeminiKey: true`  
 - [ ] 兩台裝置（或一般＋無痕）同房號可互見原文與譯文  
 - [ ] 台灣端說話 → 日本端見中文原文＋日文譯文  
 - [ ] 日本端說話 → 台灣端見日文原文＋中文譯文  
