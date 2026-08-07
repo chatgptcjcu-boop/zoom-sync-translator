@@ -83,6 +83,45 @@ button, input, select {
   font-weight: 600;
 }
 
+.badge-host {
+  display: inline-block;
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  color: #0b1220;
+  background: var(--theirs);
+  font-weight: 600;
+}
+
+.lobby-card-wide {
+  width: min(640px, 100%);
+}
+
+.guide-steps {
+  margin: 0 0 24px;
+  padding-left: 1.25rem;
+  color: var(--text);
+  line-height: 1.7;
+}
+
+.guide-steps li {
+  margin-bottom: 10px;
+}
+
+.guide-steps a {
+  color: var(--mine);
+}
+
+a.primary-btn.link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  margin-bottom: 16px;
+}
+
 .field {
   display: flex;
   flex-direction: column;

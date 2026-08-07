@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncSub 測試會議室</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <script src="/socket.io/socket.io.js"></script>
+  <script>window.__SYNCSUB_GUEST__ = true;</script>
+</head>
+<body>
+  <section id="lobby" class="lobby">
+    <div class="lobby-card">
+      <p class="badge-guest">測試會議室 · 請使用你自己的 API Key</p>
+      <h1 class="brand">Sync<span>Sub</span> 測試</h1>
+      <p class="lead">請輸入你自己的 Gemini API Key。翻譯只使用你的額度。需 Chrome／Edge，並允許麥克風。</p>
+
+      <div class="field">
+        <label for="displayName">顯示名稱</label>
+        <input id="displayName" type="text" maxlength="40" placeholder="例如：小明 / たなか" />
+      </div>
+
+      <div class="field">
+        <label for="roomId">會議房號（雙方請填相同）</label>
+        <input id="roomId" type="text" maxlength="64" value="test-001" />
+      </div>
+
+      <div class="field">
+        <label>我的身分（自動配對語系）</label>
+        <div class="role-grid">
+          <button type="button" class="role-btn active" data-role="tw" id="roleTw">
+            <strong>台灣端</strong>
+            <small>說中文 → 翻譯成日文</small>
+          </button>
+          <button type="button" class="role-btn" data-role="jp" id="roleJp">
+            <strong>日本端</strong>
+            <small>說日文 → 翻譯成中文</small>
+          </button>
+        </div>
+      </div>
+
+      <div class="field hidden">
+        <label for="serverUrl">中繼站位址</label>
+        <input id="serverUrl" type="text" value="" />
+      </div>
+
+      <div class="field hidden" id="billingField">
+        <input type="radio" name="billingMode" id="billingHost" value="host" />
+        <input type="radio" name="billingMode" id="billingByok" value="byok" checked />
+      </div>
+
+      <div class="field" id="byokFields">
+        <label for="clientApiKey">你的 Gemini API Key（必填）</label>
+        <input id="clientApiKey" type="password" autocomplete="off" spellcheck="false" placeholder="AIza..." maxlength="200" />
+        <label for="clientApiModel" class="sub-label">模型（可選）</label>
+        <select id="clientApiModel">
+          <option value="gemini-2.5-flash" selected>gemini-2.5-flash（建議）</option>
+          <option value="gemini-2.0-flash">gemini-2.0-flash</option>
+          <option value="gemini-1.5-flash">gemini-1.5-flash</option>
+        </select>
+        <p class="hint tight">
+          免費申請：<a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+          → Create API key。金鑰只經加密連線傳送，不會顯示給對方。
+        </p>
+      </div>
+
+      <button type="button" class="primary-btn" id="enterBtn">進入測試會議室</button>
+      <p class="hint">
+        不確定怎麼用？先看 <a href="/">測試說明</a>。<br />
+        雙方都請開啟本測試頁（或說明頁進入），使用相同房號與各自的 API Key。
+      </p>
+    </div>
+  </section>
+
+  <section id="room" class="room hidden">
+    <header id="topbar" class="topbar">
+      <div class="brand-mini">
+        <i id="connDot" class="dot warn"></i>
+        <span>SyncSub 測試</span>
+        <span id="roomLabel" style="color:var(--muted);font-weight:500;font-size:0.9rem"></span>
+      </div>
+
+      <div class="controls">
+        <label class="chip">
+          我的語言
+          <select id="myLang">
+            <option value="zh-TW">中文 (台灣)</option>
+            <option value="ja-JP">日本語</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+        <label class="chip">
+          翻譯為
+          <select id="targetLang">
+            <option value="ja-JP">日本語</option>
+            <option value="zh-TW">中文 (台灣)</option>
+            <option value="en-US">English</option>
+          </select>
+        </label>
+        <button type="button" class="action-btn" id="toggleBtn">開始收音</button>
+        <div class="volume" id="volumeWrap" title="麥克風音量"><i id="volumeBar"></i></div>
+        <button type="button" class="icon-btn" id="fontDown" title="字級縮小">A−</button>
+        <button type="button" class="icon-btn" id="fontUp" title="字級放大">A+</button>
+        <button type="button" class="icon-btn" id="exportBtn" title="匯出逐字稿">↓</button>
+        <button type="button" class="icon-btn" id="leaveBtn" title="離開房間">✕</button>
+        <button type="button" class="icon-btn" id="hidePanelBtn" title="隱藏面板">⌃</button>
+      </div>
+    </header>
+
+    <main class="stage" id="stage">
+      <button type="button" class="icon-btn float-gear hidden" id="showPanelBtn" title="顯示面板">⚙</button>
+
+      <div class="meta-row">
+        <div>
+          <div class="status-pill" id="statusPill">尚未連線</div>
+          <div class="debug" id="debugLog"></div>
+        </div>
+        <div class="members-pill" id="membersPill">房間人數：0</div>
+      </div>
+
+      <div class="stream" id="stream">
+        <div class="placeholder" id="placeholder">
+          點「開始收音」後，你的發言會即時出現在這裡，<br />
+          對方也會同步看到翻譯字幕。
+        </div>
+      </div>
+
+      <div class="interim" id="interimBox">聽寫中...</div>
+    </main>
+  </section>
+
+  <script src="/js/app.js"></script>
+</body>
+</html>

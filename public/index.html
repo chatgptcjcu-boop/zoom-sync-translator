@@ -3,128 +3,33 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zoom 雙邊同步翻譯字幕</title>
+  <title>SyncSub 雙語字幕測試</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/css/app.css" />
-  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <!-- 大廳：主辦方自用（伺服器額度） -->
-  <section id="lobby" class="lobby">
-    <div class="lobby-card">
-      <h1 class="brand">Sync<span>Sub</span> Meeting</h1>
-      <p class="lead">雙邊同步翻譯字幕會議室。與日本教授開 Zoom 時，雙方用 Chrome 開啟同一房號，各自收音、即時互看字幕。</p>
+  <section class="lobby">
+    <div class="lobby-card lobby-card-wide">
+      <h1 class="brand">Sync<span>Sub</span> 測試說明</h1>
+      <p class="lead">這是雙邊即時字幕測試頁。請用 <strong>Chrome</strong> 或 Edge，雙方各自開一個視窗，輸入<strong>相同房號</strong>，並使用<strong>你自己的</strong> Gemini API Key（翻譯費用算在你自己的帳號）。</p>
 
-      <div class="field">
-        <label for="displayName">顯示名稱</label>
-        <input id="displayName" type="text" maxlength="40" placeholder="例如：張老師 / 田中教授" />
-      </div>
+      <ol class="guide-steps">
+        <li>到 <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a> 免費建立 API Key（登入 Google 帳號 → Create API key）。</li>
+        <li>點下方按鈕進入測試會議室。</li>
+        <li>填寫顯示名稱、房號、身分（台灣端／日本端），並貼上你的 API Key。</li>
+        <li>與對方約定好<strong>同一個房號</strong>後按「進入測試會議室」→「開始收音」。</li>
+        <li>請允許瀏覽器使用麥克風。建議把視窗放在 Zoom 旁邊對照字幕。</li>
+      </ol>
 
-      <div class="field">
-        <label for="roomId">會議房號（雙方相同）</label>
-        <input id="roomId" type="text" maxlength="64" value="meeting-001" />
-      </div>
+      <a class="primary-btn link-btn" href="/try">進入測試會議室</a>
 
-      <div class="field">
-        <label>我的身分（自動配對語系）</label>
-        <div class="role-grid">
-          <button type="button" class="role-btn active" data-role="tw" id="roleTw">
-            <strong>台灣端</strong>
-            <small>說中文 → 翻譯成日文</small>
-          </button>
-          <button type="button" class="role-btn" data-role="jp" id="roleJp">
-            <strong>日本端</strong>
-            <small>說日文 → 翻譯成中文</small>
-          </button>
-        </div>
-      </div>
-
-      <div class="field">
-        <label for="serverUrl">中繼站位址（本機預設即可）</label>
-        <input id="serverUrl" type="text" value="" placeholder="空白 = 目前這個網站" />
-      </div>
-
-      <!-- 主辦頁固定用伺服器額度；保留隱藏欄位供 app.js -->
-      <div class="field hidden" id="billingField">
-        <input type="radio" name="billingMode" id="billingHost" value="host" checked />
-        <input type="radio" name="billingMode" id="billingByok" value="byok" />
-      </div>
-      <div class="field hidden" id="byokFields">
-        <input id="clientApiKey" type="password" maxlength="200" />
-        <select id="clientApiModel">
-          <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
-        </select>
-      </div>
-
-      <button type="button" class="primary-btn" id="enterBtn">進入會議室</button>
       <p class="hint">
-        使用方式：雙方各開一個 Chrome 視窗放在 Zoom 旁邊 → 輸入相同房號 → 按「開始收音」。<br />
-        需使用 Chrome / Edge，並允許麥克風。此頁使用主辦方伺服器翻譯額度。<br />
-        若要給<strong>別人測試</strong>且不想消耗你的 API，請改傳訪客網址 <code>/guest</code>。
+        測試網址也可直接開啟：本站 <code>/try</code><br />
+        請勿嘗試其他路徑；本說明頁與測試頁即為對外開放的入口。
       </p>
     </div>
   </section>
-
-  <!-- 會議室 -->
-  <section id="room" class="room hidden">
-    <header id="topbar" class="topbar">
-      <div class="brand-mini">
-        <i id="connDot" class="dot warn"></i>
-        <span>SyncSub</span>
-        <span id="roomLabel" style="color:var(--muted);font-weight:500;font-size:0.9rem"></span>
-      </div>
-
-      <div class="controls">
-        <label class="chip">
-          我的語言
-          <select id="myLang">
-            <option value="zh-TW">中文 (台灣)</option>
-            <option value="ja-JP">日本語</option>
-            <option value="en-US">English</option>
-          </select>
-        </label>
-        <label class="chip">
-          翻譯為
-          <select id="targetLang">
-            <option value="ja-JP">日本語</option>
-            <option value="zh-TW">中文 (台灣)</option>
-            <option value="en-US">English</option>
-          </select>
-        </label>
-        <button type="button" class="action-btn" id="toggleBtn">開始收音</button>
-        <div class="volume" id="volumeWrap" title="麥克風音量"><i id="volumeBar"></i></div>
-        <button type="button" class="icon-btn" id="fontDown" title="字級縮小">A−</button>
-        <button type="button" class="icon-btn" id="fontUp" title="字級放大">A+</button>
-        <button type="button" class="icon-btn" id="exportBtn" title="匯出逐字稿">↓</button>
-        <button type="button" class="icon-btn" id="leaveBtn" title="離開房間">✕</button>
-        <button type="button" class="icon-btn" id="hidePanelBtn" title="隱藏面板">⌃</button>
-      </div>
-    </header>
-
-    <main class="stage" id="stage">
-      <button type="button" class="icon-btn float-gear hidden" id="showPanelBtn" title="顯示面板">⚙</button>
-
-      <div class="meta-row">
-        <div>
-          <div class="status-pill" id="statusPill">尚未連線</div>
-          <div class="debug" id="debugLog"></div>
-        </div>
-        <div class="members-pill" id="membersPill">房間人數：0</div>
-      </div>
-
-      <div class="stream" id="stream">
-        <div class="placeholder" id="placeholder">
-          點「開始收音」後，你的發言會即時出現在這裡，<br />
-          對方也會同步看到翻譯字幕。
-        </div>
-      </div>
-
-      <div class="interim" id="interimBox">聽寫中...</div>
-    </main>
-  </section>
-
-  <script src="/js/app.js"></script>
 </body>
 </html>

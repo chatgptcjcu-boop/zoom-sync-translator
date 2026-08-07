@@ -85,7 +85,8 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 | `TRANSLATE_PROVIDER` | **`gemini`（預設／正式）** / `deepl` / `openai` / `mymemory` |
 | `GEMINI_API_KEY` | Google AI Studio Key（主辦方額度） |
 | `GEMINI_MODEL` | 預設 `gemini-2.5-flash` |
-| `REQUIRE_CLIENT_API_KEY` | 選用；一般用 `/guest` 即可，不必開這個 |
+| `HOST_LOBBY_TOKEN` | 自用會議室路徑密鑰；網址為 `/r/<token>`，勿外傳 |
+| `REQUIRE_CLIENT_API_KEY` | 選用；公開測試請用 `/` 與 `/try` 即可 |
 | `DEEPL_API_KEY` | 選用備援 |
 | `OPENAI_API_KEY` | 選用備援（`TRANSLATE_PROVIDER` 非 gemini 時才會進鏈） |
 | `CORS_ORIGIN` | 正式環境改成你的網域，不要用 `*` |
@@ -93,14 +94,13 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 
 翻譯會依「主引擎 → 備援引擎」自動降級；單房間有佇列，避免瞬間打爆 API。
 
-**兩組網址（同一服務，首頁設定不用改）：**
+**給別人測試（可公開）：**
 
-| 對象 | 網址 | 額度 |
-|------|------|------|
-| 你自己 | `https://zoom-sync-translator-production.up.railway.app/` | 主辦方 Gemini |
-| 給別人測試 | `https://zoom-sync-translator-production.up.railway.app/guest` | 測試者自備 Key |
+- 說明：https://zoom-sync-translator-production.up.railway.app/
+- 會議室：https://zoom-sync-translator-production.up.railway.app/try  
+見 [docs/給測試者的說明.md](./docs/給測試者的說明.md)
 
-詳見 [docs/BYOK-自備APIKey.md](./docs/BYOK-自備APIKey.md)。
+**你自己開會：** 用 `/r/<HOST_LOBBY_TOKEN>`（啟動 log 會印；勿轉傳）。
 
 ---
 

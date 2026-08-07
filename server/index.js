@@ -15,6 +15,11 @@ const { envGet, envHas } = require('./env');
 const PORT = Number(process.env.PORT) || 3100;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const startedAt = Date.now();
+// 自用會議室路徑密鑰（別人猜不到）；可在 Railway Variables 改掉
+const HOST_LOBBY_TOKEN = String(
+  process.env.HOST_LOBBY_TOKEN || envGet('SYNC_HOST_LOBBY_TOKEN') || 'ss-73c8b2b0'
+).replace(/[^a-zA-Z0-9_-]/g, '');
+const HOST_LOBBY_PATH = `/r/${HOST_LOBBY_TOKEN || 'ss-73c8b2b0'}`;
 
 const app = express();
 const server = http.createServer(app);
@@ -62,13 +67,28 @@ function escapePlain(text) {
 app.use(express.json({ limit: '32kb' }));
 
 const publicDir = path.join(__dirname, '..', 'public');
+const pagesDir = path.join(__dirname, 'pages');
 
-// 訪客測試專用入口（強制自備 API；主辦首頁 / 不變）
-app.get(['/guest', '/guest/'], (_req, res) => {
-  res.sendFile(path.join(publicDir, 'guest.html'));
+// 公開：說明頁 / 、測試會議室 /try（強制自備 API）
+// 私密：自用會議室 HOST_LOBBY_PATH（伺服器額度；勿外傳）
+app.get('/', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-app.use(express.static(publicDir));
+app.get(['/try', '/try/', '/guest', '/guest/'], (_req, res) => {
+  res.sendFile(path.join(pagesDir, 'try.html'));
+});
+
+app.get([HOST_LOBBY_PATH, `${HOST_LOBBY_PATH}/`], (_req, res) => {
+  res.sendFile(path.join(pagesDir, 'host.html'));
+});
+
+// 避免直接猜到靜態檔名
+app.get(['/host.html', '/try.html', '/guest.html'], (_req, res) => {
+  res.redirect(302, '/');
+});
+
+app.use(express.static(publicDir, { index: false }));
 
 app.get('/health', (_req, res) => {
   const stats = rooms.stats();
@@ -81,7 +101,7 @@ app.get('/health', (_req, res) => {
   // 列出相關變數「名稱」（不含值），方便查出拼錯字／設錯服務／未 Deploy staged
   const relatedEnvNames = Object.keys(process.env)
     .filter((k) =>
-      /^(OPENAI|DEEPL|GEMINI|GOOGLE_API|TRANSLATE|REQUIRE_|SYNC_|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k)
+      /^(OPENAI|DEEPL|GEMINI|GOOGLE_API|TRANSLATE|REQUIRE_|HOST_|SYNC_|TRUST_PROXY|CORS|PORT|RAILWAY)/i.test(k)
     )
     .sort();
 
@@ -121,8 +141,9 @@ app.get('/api/config', (_req, res) => {
     providers: providerChain().map((p) => p.name),
     requireClientApiKey: String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true',
     byokEnabled: true,
-    guestEntryPath: '/guest',
-    hostEntryPath: '/',
+    // 只公開測試入口；自用路徑不回傳給前端
+    publicGuidePath: '/',
+    publicTryPath: '/try',
   });
 });
 
@@ -315,6 +336,9 @@ server.listen(PORT, () => {
   console.log('=========================================');
   console.log(`同步翻譯中繼站已啟動  http://localhost:${PORT}`);
   console.log(`翻譯引擎鏈: ${providerChain().map((p) => p.name).join(' → ')}`);
+  console.log(`公開說明 http://localhost:${PORT}/`);
+  console.log(`公開測試 http://localhost:${PORT}/try`);
+  console.log(`自用入口 http://localhost:${PORT}${HOST_LOBBY_PATH} （勿外傳）`);
   console.log(
     `[env] TRANSLATE_PROVIDER=${envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)'} ` +
       `hasGeminiKey=${envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY')} ` +

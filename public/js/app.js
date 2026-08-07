@@ -56,8 +56,9 @@
     requireClientApiKey: false,
     guestLane: !!(
       window.__SYNCSUB_GUEST__ ||
-      /^\/guest\/?$/.test(location.pathname)
+      /^\/(try|guest)\/?$/.test(location.pathname)
     ),
+    hostLane: !!(window.__SYNCSUB_HOST__ || /^\/r\//.test(location.pathname)),
     isRecording: false,
     recognition: null,
     restartTimer: null,
@@ -119,7 +120,7 @@
     const byok = state.guestLane || els.billingByok?.checked;
     const apiKey = (els.clientApiKey?.value || '').trim();
     if (byok && !apiKey) {
-      alert(state.guestLane ? '訪客測試通道請輸入自己的 Gemini API Key' : '請輸入 Gemini API Key');
+      alert(state.guestLane ? '請輸入你自己的 Gemini API Key 才能進入測試會議室' : '請輸入 Gemini API Key');
       return;
     }
 
@@ -233,7 +234,7 @@
         state.translateMode = res.translateMode || (state.apiKey ? 'byok' : 'server');
         renderMembers(res.snapshot?.members || []);
         const modeLabel = state.guestLane
-          ? '訪客通道｜自備 Gemini Key'
+          ? '測試通道｜自備 Gemini Key'
           : state.translateMode === 'byok'
             ? '翻譯：自備 Gemini Key'
             : '翻譯：主辦方伺服器額度';
@@ -242,7 +243,12 @@
         const shareParams = new URLSearchParams();
         shareParams.set('room', state.roomId);
         shareParams.set('role', state.role);
-        const basePath = state.guestLane ? '/guest' : '/';
+        // 自用路徑保留完整 pathname，避免洩漏到公開 /；測試用 /try
+        const basePath = state.guestLane
+          ? '/try'
+          : state.hostLane
+            ? location.pathname.replace(/\/$/, '') || '/'
+            : '/';
         history.replaceState(null, '', `${basePath}?${shareParams.toString()}`);
       }
     );
