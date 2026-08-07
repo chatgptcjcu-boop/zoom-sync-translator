@@ -252,6 +252,36 @@ a.primary-btn.link-btn {
   line-height: 1.55;
 }
 
+.site-legal {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.site-legal p {
+  margin: 0;
+}
+
+.site-legal p + p {
+  margin-top: 4px;
+}
+
+.site-legal-room {
+  margin: 0;
+  padding: 8px 16px 12px;
+  border-top: 1px solid var(--line);
+  flex-shrink: 0;
+  background: rgba(11, 18, 32, 0.55);
+}
+
+.site-legal-room p {
+  font-size: 0.7rem;
+}
+
 /* ===== Room ===== */
 .room {
   height: 100vh;
