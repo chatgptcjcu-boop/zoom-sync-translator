@@ -1,0 +1,121 @@
+{
+  "localBench": {
+    "mode": "local",
+    "total": 100,
+    "ok": 100,
+    "fail": 0,
+    "successRate": "100.0%",
+    "avgLatencyMs": 4440,
+    "totalMs": 151854,
+    "chain": [
+      "gemini",
+      "mymemory"
+    ],
+    "sample": [
+      {
+        "id": 2,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 3044,
+        "ok": true,
+        "src": "請先做個簡單的自我介紹。",
+        "out": "まずは、簡単な自己紹介をお願いします。"
+      },
+      {
+        "id": 1,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 5305,
+        "ok": true,
+        "src": "大家好，歡迎參加今天的會議。",
+        "out": "皆様、本日の会議へようこそ。"
+      },
+      {
+        "id": 3,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 5783,
+        "ok": true,
+        "src": "今天主要想討論合作時程。",
+        "out": "本日、主に協力スケジュールについて議論したいと思います。"
+      },
+      {
+        "id": 4,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 4603,
+        "ok": true,
+        "src": "請問貴公司目前的優先項目是什麼？",
+        "out": "御社の現在の優先事項は何でしょうか？"
+      },
+      {
+        "id": 6,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 3804,
+        "ok": true,
+        "src": "預算方面還需要再確認。",
+        "out": "予算については、まだ再確認が必要です。"
+      },
+      {
+        "id": 50,
+        "dir": "ZH→JA",
+        "provider": "gemini",
+        "ms": 4966,
+        "ok": true,
+        "src": "那我們就先到這裡，謝謝。",
+        "out": "それでは、一旦ここまでとさせていただきます。ありがとうございます。"
+      },
+      {
+        "id": 51,
+        "dir": "JA→ZH",
+        "provider": "gemini",
+        "ms": 5552,
+        "ok": true,
+        "src": "本日はお忙しい中、ご参加いただきありがとうございます。",
+        "out": "感謝各位今天在百忙之中撥冗參加。"
+      },
+      {
+        "id": 53,
+        "dir": "JA→ZH",
+        "provider": "gemini",
+        "ms": 2428,
+        "ok": true,
+        "src": "本日の議題は協力スケジュールです。",
+        "out": "今天的議程是合作時程。"
+      },
+      {
+        "id": 56,
+        "dir": "JA→ZH",
+        "provider": "gemini",
+        "ms": 3293,
+        "ok": true,
+        "src": "予算については再確認が必要です。",
+        "out": "關於預算，需要再確認。"
+      },
+      {
+        "id": 54,
+        "dir": "JA→ZH",
+        "provider": "gemini",
+        "ms": 6500,
+        "ok": true,
+        "src": "御社の優先事項を教えてください。",
+        "out": "請告訴我們貴公司的優先事項。"
+      }
+    ],
+    "failures": []
+  },
+  "railway": {
+    "mode": "railway-health",
+    "url": "https://zoom-sync-translator-production.up.railway.app/health",
+    "ok": true,
+    "preferredProvider": "mymemory",
+    "translateProviders": [
+      "mymemory"
+    ],
+    "hasGeminiKey": false,
+    "TRANSLATE_PROVIDER": "gemini",
+    "hint": "Set GEMINI_API_KEY (primary engine). OpenAI/DeepL are optional fallbacks only if TRANSLATE_PROVIDER is not gemini.",
+    "geminiReady": false
+  }
+}
