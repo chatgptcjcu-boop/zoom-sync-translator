@@ -34,12 +34,12 @@ npm install
 npm start
 ```
 
-瀏覽器開兩個視窗：
+瀏覽器開兩個視窗（公開測試通道，需各自貼 Gemini Key）：
 
-1. http://localhost:3100  → 選「台灣端」→ 房號 `meeting-001` → 進入 → 開始收音  
-2. 無痕視窗同一網址 → 選「日本端」→ 同一房號 → 進入 → 開始收音  
+1. http://localhost:3100/try → 選「台灣端」→ 同房號 → 貼自己的 Key → 進入 → 開始收音  
+2. 無痕視窗同一 `/try` → 選「日本端」→ 同房號 → 貼 Key → 開始收音  
 
-對一邊說話，另一邊應先出現原文，再出現譯文。
+自用（伺服器額度）：啟動 log 會印 `/r/<HOST_LOBBY_TOKEN>`，見 [docs/站長自用說明.md](./docs/站長自用說明.md)。
 
 健康檢查：http://localhost:3100/health
 
@@ -51,21 +51,24 @@ npm start
 
 1. 部署中繼站到有 **HTTPS** 的雲端（**首選 Railway**／Fly.io／VPS + Nginx）。  
 2. 在 `.env`／Railway 設定 **`TRANSLATE_PROVIDER=gemini`** 與 `GEMINI_API_KEY`（正式會議首選）。  
-3. 把網址傳給教授，例如：  
-   - 你：`https://你的網域/?room=mtg-0320&role=tw&name=張老師`  
-   - 對方：`https://你的網域/?room=mtg-0320&role=jp&name=田中`  
+3. 用**自用會議室路徑**（`/r/<HOST_LOBBY_TOKEN>`）開雙方視窗，例如：  
+   - 你：`https://你的網域/r/<token>?room=mtg-0320&role=tw&name=張老師`  
+   - 對方：同一路徑 `?room=mtg-0320&role=jp&name=田中`  
 4. 雙方開 Zoom；再各開一個 Chrome 視窗放在旁邊（或第二螢幕）開始收音。  
 5. 開會中可按「⌃」隱藏控制列，只留字幕；結束後按「↓」匯出逐字稿。
 
-### Railway 運作規格書與里程碑
+### 文件導覽
 
 | 文件 | 說明 |
 |------|------|
-| [docs/MILESTONES.md](./docs/MILESTONES.md) | **M1→M4 進度總表** |
-| [docs/RAILWAY-運作規格書.md](./docs/RAILWAY-運作規格書.md) | 整體運作規格 |
+| [docs/整體程序與過程.md](./docs/整體程序與過程.md) | **架構、URL 地圖、部署與決策全文** |
+| [docs/給測試者的說明.md](./docs/給測試者的說明.md) | **可轉傳**的公開測試說明 |
+| [docs/站長自用說明.md](./docs/站長自用說明.md) | 站長私用（含自用路徑） |
+| [docs/BYOK-自備APIKey.md](./docs/BYOK-自備APIKey.md) | BYOK／guestLane 技術說明 |
+| [docs/MILESTONES.md](./docs/MILESTONES.md) | M1→M4 進度總表 |
+| [docs/RAILWAY-運作規格書.md](./docs/RAILWAY-運作規格書.md) | Railway 運作規格 |
 | [docs/M1-Railway部署指南.md](./docs/M1-Railway部署指南.md) | 部署 |
-| [docs/M2-DeepL接線.md](./docs/M2-DeepL接線.md) | DeepL |
-| [docs/M2-Gemini接線.md](./docs/M2-Gemini接線.md) | **Gemini API 翻譯** |
+| [docs/M2-Gemini接線.md](./docs/M2-Gemini接線.md) | Gemini API |
 | [docs/M3-彩排SOP.md](./docs/M3-彩排SOP.md) | 彩排 |
 | [docs/M4-實戰Runbook.md](./docs/M4-實戰Runbook.md) | 實戰 |
 
@@ -155,13 +158,17 @@ Chrome 的 `SpeechRecognition` 約 30–60 秒無聲或內部 timeout 會 `onend
 ```
 zoom-sync-translator/
 ├── server/
-│   ├── index.js       # 中繼站入口
-│   ├── rooms.js       # 房間成員與歷史
-│   └── translate.js   # 翻譯引擎與降級
+│   ├── index.js         # 路由、Socket.io、啟動 log
+│   ├── pages/
+│   │   ├── try.html     # 公開測試會議室（強制 BYOK）
+│   │   └── host.html    # 自用會議室（伺服器額度）
+│   ├── rooms.js
+│   └── translate.js
 ├── public/
-│   ├── index.html     # 大廳 + 會議室
+│   ├── index.html       # 對外測試說明頁
 │   ├── css/app.css
 │   └── js/app.js
+├── docs/                # 程序說明、BYOK、里程碑
 ├── .env.example
 └── package.json
 ```
