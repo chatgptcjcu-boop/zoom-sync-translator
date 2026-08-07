@@ -4,7 +4,7 @@
 |--------|------|------|
 | **M0** 規格 | Railway 運作規格書 | ✅ 完成 |
 | **M1** 部署 | GitHub + Railway 公開 HTTPS 中繼 | ✅ 驗收通過（2026-08-03） |
-| **M2** Gemini | Production 使用 Gemini 翻譯 | 🔄 本機已通；Railway 待設 `GEMINI_API_KEY` + Deploy |
+| **M2** Gemini | Production 使用 Gemini 翻譯 | ✅ 已修復（變數寫入正確專案 peaceful-blessing） |
 | **M3** 彩排 | 雙端＋Zoom 模擬開會驗收 | ⏳ 見 M3 SOP |
 | **M4** 實戰 | 對日本教授正式會議 | ⏳ 見 M4 Runbook |
 
