@@ -449,6 +449,41 @@ a.primary-btn.link-btn {
   text-overflow: ellipsis;
 }
 
+.latency-pill {
+  pointer-events: auto;
+  display: inline-block;
+  margin-top: 6px;
+  background: rgba(8, 14, 26, 0.72);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--mine);
+}
+
+.latency-pill.warn {
+  color: var(--warn);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+
+.latency-pill.bad {
+  color: var(--danger);
+  border-color: rgba(251, 113, 133, 0.35);
+}
+
+.latency-meta {
+  margin-top: 6px;
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+
+.latency-meta.hidden {
+  display: none;
+}
+
 .debug {
   margin-top: 8px;
   font-size: 0.75rem;

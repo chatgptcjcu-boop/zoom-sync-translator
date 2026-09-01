@@ -69,7 +69,40 @@
     fontScale: 1,
     history: [],
     pingTimer: null,
+    pendingMsgs: {},
+    remoteMsgAt: {},
+    metrics: { rtt: null, lastTranslateMs: null },
   };
+
+  function ensureLatencyPill() {
+    if (els.latencyPill) return;
+    const leftCol = els.statusPill?.parentElement;
+    if (!leftCol) return;
+    const pill = document.createElement('div');
+    pill.id = 'latencyPill';
+    pill.className = 'latency-pill';
+    pill.title = 'RTT：與中繼站來回延遲；譯：伺服器呼叫翻譯 API 耗時';
+    pill.textContent = '延遲：—';
+    leftCol.insertBefore(pill, els.debugLog);
+    els.latencyPill = pill;
+  }
+
+  function updateLatencyUI() {
+    ensureLatencyPill();
+    if (!els.latencyPill) return;
+    const rtt = state.metrics.rtt != null ? `${state.metrics.rtt}ms` : '—';
+    const tr = state.metrics.lastTranslateMs != null ? `${state.metrics.lastTranslateMs}ms` : '—';
+    els.latencyPill.textContent = `RTT ${rtt}｜譯 ${tr}`;
+    const r = state.metrics.rtt || 0;
+    els.latencyPill.classList.remove('warn', 'bad');
+    if (r > 2000) els.latencyPill.classList.add('bad');
+    else if (r > 800) els.latencyPill.classList.add('warn');
+  }
+
+  function recordRtt(rtt) {
+    state.metrics.rtt = rtt;
+    updateLatencyUI();
+  }
 
   // ---- Lobby ----
   function setRole(role) {
@@ -134,6 +167,8 @@
     els.lobby.classList.add('hidden');
     els.room.classList.remove('hidden');
     els.roomLabel.textContent = `#${roomId}`;
+    ensureLatencyPill();
+    updateLatencyUI();
 
     connectSocket();
   }
@@ -193,6 +228,7 @@
 
     s.on('receive_original', (data) => {
       if (data.senderId === state.selfId) return;
+      if (data.msgId && data.at) state.remoteMsgAt[data.msgId] = data.at;
       appendBubble({
         msgId: data.msgId,
         text: data.text,
@@ -202,7 +238,26 @@
     });
 
     s.on('receive_translation', (data) => {
-      applyTranslation(data.msgId, data.translatedText, data.error);
+      if (data.translateMs != null) {
+        state.metrics.lastTranslateMs = data.translateMs;
+        updateLatencyUI();
+      }
+
+      let latencyNote = '';
+      const pending = state.pendingMsgs[data.msgId];
+      if (pending) {
+        latencyNote = `往返 ${Date.now() - pending.sentAt}ms`;
+        delete state.pendingMsgs[data.msgId];
+      } else if (state.remoteMsgAt[data.msgId]) {
+        latencyNote = `端到端 ${Date.now() - state.remoteMsgAt[data.msgId]}ms`;
+        delete state.remoteMsgAt[data.msgId];
+      }
+
+      applyTranslation(data.msgId, data.translatedText, data.error, {
+        translateMs: data.translateMs,
+        latencyNote,
+        provider: data.provider,
+      });
     });
 
     s.on('server_error', (data) => {
@@ -256,14 +311,16 @@
 
   function startPing() {
     stopPing();
-    state.pingTimer = setInterval(() => {
+    const pingOnce = () => {
       if (!state.socket?.connected) return;
       const t0 = Date.now();
       state.socket.emit('client_ping', t0, (res) => {
         const rtt = Date.now() - (res?.clientTs || t0);
-        if (rtt > 1500) showDebug(`網路延遲偏高 ${rtt}ms`);
+        recordRtt(rtt);
       });
-    }, 20000);
+    };
+    pingOnce();
+    state.pingTimer = setInterval(pingOnce, 5000);
   }
 
   function stopPing() {
@@ -300,6 +357,7 @@
       <div class="translation-target ${translatedText ? 'translated' : 'pending'}">
         ${translatedText ? escapeHtml(translatedText) : '翻譯中…'}
       </div>
+      <div class="latency-meta hidden"></div>
     `;
     els.stream.appendChild(div);
     state.history.push({ msgId, text, senderName, mine, translatedText: translatedText || '' });
@@ -307,7 +365,7 @@
     return msgId;
   }
 
-  function applyTranslation(msgId, translatedText, isError) {
+  function applyTranslation(msgId, translatedText, isError, meta = {}) {
     const box = document.getElementById(msgId);
     if (!box) return;
     const target = box.querySelector('.translation-target');
@@ -317,6 +375,18 @@
     if (isError) target.style.color = 'var(--danger)';
     target.textContent = translatedText;
     if (box.classList.contains('mine')) box.classList.add('done');
+
+    const metaEl = box.querySelector('.latency-meta');
+    if (metaEl) {
+      const parts = [];
+      if (meta.translateMs != null) parts.push(`譯 ${meta.translateMs}ms`);
+      if (meta.latencyNote) parts.push(meta.latencyNote);
+      if (meta.provider && meta.provider !== 'error') parts.push(meta.provider);
+      if (parts.length) {
+        metaEl.textContent = parts.join(' · ');
+        metaEl.classList.remove('hidden');
+      }
+    }
 
     const hist = state.history.find((h) => h.msgId === msgId);
     if (hist) hist.translatedText = translatedText;
@@ -394,6 +464,7 @@
           sourceLang: els.myLang.value,
           targetLang: els.targetLang.value,
         });
+        state.pendingMsgs[msgId] = { sentAt: Date.now() };
       }
     };
 

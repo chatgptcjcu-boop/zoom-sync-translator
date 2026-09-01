@@ -284,13 +284,16 @@ io.on('connection', (socket) => {
     });
 
     // 2) 佇列翻譯後廣播結果（優先使用該使用者自帶的 API Key）
+    const speechSentAt = originalPayload.at;
     enqueueTranslate(roomId, async () => {
+      const translateStarted = Date.now();
       try {
         const t = socket.data.translator || {};
         const result = await translate(text, sourceLang, targetLang, {
           apiKey: t.mode === 'byok' ? t.apiKey : '',
           model: t.model,
         });
+        const translateMs = Date.now() - translateStarted;
         const translatedText = escapePlain(result.text);
         rooms.updateTranslation(roomId, msgId, translatedText, result.provider);
 
@@ -298,11 +301,14 @@ io.on('connection', (socket) => {
           msgId,
           translatedText,
           provider: result.provider,
+          translateMs,
+          sentAt: speechSentAt,
         });
         console.log(
-          `[翻譯][${result.provider}] ${roomId}: ${text.slice(0, 40)} → ${result.text.slice(0, 40)}`
+          `[翻譯][${result.provider}] ${roomId} ${translateMs}ms: ${text.slice(0, 40)} → ${result.text.slice(0, 40)}`
         );
       } catch (error) {
+        const translateMs = Date.now() - translateStarted;
         console.error(`[翻譯失敗] ${roomId}`, error.message);
         const fallback = `[翻譯失敗] ${escapePlain(text)}`;
         rooms.updateTranslation(roomId, msgId, fallback, 'error');
@@ -310,6 +316,8 @@ io.on('connection', (socket) => {
           msgId,
           translatedText: fallback,
           provider: 'error',
+          translateMs,
+          sentAt: speechSentAt,
           error: true,
         });
       }
