@@ -63,6 +63,7 @@ npm start
 |------|------|
 | [docs/公開版與自用版-網址與參數.md](./docs/公開版與自用版-網址與參數.md) | **公開／自用網址、查詢參數、進房欄位、環境變數對照** |
 | [docs/從Railway遷移.md](./docs/從Railway遷移.md) | **試用到期：升級接替或搬到 Fly／Render／VPS** |
+| [docs/本機Cloudflare-Tunnel.md](./docs/本機Cloudflare-Tunnel.md) | **$0：本機 + Cloudflare Tunnel 對外** |
 | [docs/整體程序與過程.md](./docs/整體程序與過程.md) | 架構、URL 地圖、部署與決策全文 |
 | [docs/給測試者的說明.md](./docs/給測試者的說明.md) | **可轉傳**的公開測試說明 |
 | [docs/站長自用說明.md](./docs/站長自用說明.md) | 站長私用（含自用路徑） |

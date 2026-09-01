@@ -21,8 +21,30 @@
 | **B. 搬到 Fly.io / Render 等** | 不想續 Railway、仍要雲端 | **會換成新網址**（要重發測試說明） | 新專案 + 貼 Variables |
 | **C. 小 VPS（推薦長期）** | 要可控、可固定網域 | 用自己的網域或 IP+HTTPS | 裝 Node / pm2 / Caddy 或 Nginx |
 | **D. 只本機** | 僅自己兩台電腦測 | `localhost` 無法給遠端教授 | 不適合正式遠端會議 |
+| **E. 本機 + Cloudflare Tunnel** | 要 $0 且偶爾給遠端測 | `https://….trycloudflare.com`（快速模式常變） | Mac 開著 + 見 [本機Cloudflare-Tunnel.md](./本機Cloudflare-Tunnel.md) |
 
-**開會明天就要用 → 先做 A**，之後再慢慢搬到 C。
+**開會明天就要用 → 先做 A**，之後再慢慢搬到 C 或 E。
+
+---
+
+## 方案 E：本機 + Cloudflare Tunnel（$0）
+
+完整步驟：[本機Cloudflare-Tunnel.md](./本機Cloudflare-Tunnel.md)。
+
+最短版：
+
+```bash
+# 終端機 1
+cd /Users/apple/Documents/zoom-sync-translator
+# .env 建議 TRUST_PROXY=1
+npm start
+
+# 終端機 2
+npm run tunnel
+# 或：cloudflared tunnel --url http://localhost:3100
+```
+
+把印出的 `https://….trycloudflare.com` 當公開網域（`/`、`/try`）；開會時勿讓 Mac 睡眠。
 
 ---
 
