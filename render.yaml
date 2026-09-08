@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: kirokuflow-meet
+    runtime: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: TRANSLATE_PROVIDER
+        value: gemini
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: MAX_TRANSLATIONS_PER_MINUTE
+        value: 24
+      - key: TRUST_PROXY
+        value: 1
+      - key: HOST_LOBBY_TOKEN
+        generateValue: true
+      - key: INVITE_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false

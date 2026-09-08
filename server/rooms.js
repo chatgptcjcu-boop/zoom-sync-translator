@@ -1,7 +1,8 @@
 /**
  * 輕量房間狀態：成員清單、最近字幕（供晚進房者補齊）
  */
-const MAX_HISTORY = 40;
+const MAX_HISTORY = 120;
+const MAX_MEMBERS = 4;
 
 class RoomManager {
   constructor() {
@@ -11,13 +12,14 @@ class RoomManager {
 
   ensure(roomId) {
     if (!this.rooms.has(roomId)) {
-      this.rooms.set(roomId, { members: new Map(), history: [] });
+      this.rooms.set(roomId, { members: new Map(), history: [], messageIds: new Set(), sequence: 0, requestTimes: [] });
     }
     return this.rooms.get(roomId);
   }
 
   join(roomId, socketId, profile) {
     const room = this.ensure(roomId);
+    if (!room.members.has(socketId) && room.members.size >= MAX_MEMBERS) throw new Error('This meeting room is full');
     room.members.set(socketId, {
       socketId,
       displayName: profile.displayName || 'Guest',
@@ -52,10 +54,15 @@ class RoomManager {
 
   pushHistory(roomId, entry) {
     const room = this.ensure(roomId);
-    room.history.push({ ...entry, at: Date.now() });
+    if (room.messageIds.has(entry.msgId)) return null;
+    room.messageIds.add(entry.msgId);
+    const item = { ...entry, at: Date.now(), sequence: ++room.sequence };
+    room.history.push(item);
     if (room.history.length > MAX_HISTORY) {
-      room.history.splice(0, room.history.length - MAX_HISTORY);
+      const removed = room.history.splice(0, room.history.length - MAX_HISTORY);
+      removed.forEach((message) => room.messageIds.delete(message.msgId));
     }
+    return item;
   }
 
   updateTranslation(roomId, msgId, translatedText, provider) {
@@ -66,6 +73,16 @@ class RoomManager {
       item.translatedText = translatedText;
       item.provider = provider;
     }
+  }
+
+  allowRequest(roomId, maxPerMinute) {
+    const room = this.rooms.get(roomId);
+    if (!room) return false;
+    const now = Date.now();
+    room.requestTimes = room.requestTimes.filter((at) => now - at < 60_000);
+    if (room.requestTimes.length >= maxPerMinute) return false;
+    room.requestTimes.push(now);
+    return true;
   }
 
   snapshot(roomId) {

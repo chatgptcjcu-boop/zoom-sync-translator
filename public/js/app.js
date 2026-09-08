@@ -16,11 +16,10 @@
     enterBtn: $('enterBtn'),
     roleTw: $('roleTw'),
     roleJp: $('roleJp'),
-    billingHost: $('billingHost'),
-    billingByok: $('billingByok'),
-    byokFields: $('byokFields'),
-    clientApiKey: $('clientApiKey'),
-    clientApiModel: $('clientApiModel'),
+    inviteRole: $('inviteRole'),
+    inviteExpiry: $('inviteExpiry'),
+    createInviteBtn: $('createInviteBtn'),
+    inviteOutput: $('inviteOutput'),
     topbar: $('topbar'),
     connDot: $('connDot'),
     roomLabel: $('roomLabel'),
@@ -49,16 +48,10 @@
     selfId: null,
     roomId: '',
     displayName: '',
-    billingMode: 'host',
-    apiKey: '',
-    apiModel: 'gemini-2.5-flash',
     translateMode: 'server',
-    requireClientApiKey: false,
-    guestLane: !!(
-      window.__SYNCSUB_GUEST__ ||
-      /^\/(try|guest)\/?$/.test(location.pathname)
-    ),
     hostLane: !!(window.__SYNCSUB_HOST__ || /^\/r\//.test(location.pathname)),
+    hostToken: /^\/r\/([^/]+)/.exec(location.pathname)?.[1] || '',
+    invite: new URLSearchParams(location.search).get('invite') || '',
     isRecording: false,
     recognition: null,
     restartTimer: null,
@@ -71,6 +64,7 @@
     pingTimer: null,
     pendingMsgs: {},
     remoteMsgAt: {},
+    pendingTranslations: {},
     metrics: { rtt: null, lastTranslateMs: null },
   };
 
@@ -121,16 +115,6 @@
   els.roleTw.addEventListener('click', () => setRole('tw'));
   els.roleJp.addEventListener('click', () => setRole('jp'));
 
-  // 訪客通道：固定 BYOK；主辦首頁：固定伺服器額度
-  if (state.guestLane && els.billingByok) {
-    els.billingByok.checked = true;
-    state.billingMode = 'byok';
-    state.requireClientApiKey = true;
-  } else if (els.billingHost) {
-    els.billingHost.checked = true;
-    state.billingMode = 'host';
-  }
-
   // 從 URL 預填：?room=xxx&role=jp&name=Tanaka
   (function hydrateFromQuery() {
     const q = new URLSearchParams(location.search);
@@ -150,18 +134,13 @@
       return;
     }
 
-    const byok = state.guestLane || els.billingByok?.checked;
-    const apiKey = (els.clientApiKey?.value || '').trim();
-    if (byok && !apiKey) {
-      alert(state.guestLane ? '請輸入你自己的 Gemini API Key 才能進入測試會議室' : '請輸入 Gemini API Key');
+    if (!state.hostToken && !state.invite) {
+      alert('請使用主持人提供的有效會議邀請連結。');
       return;
     }
 
     state.roomId = roomId;
     state.displayName = displayName;
-    state.billingMode = byok ? 'byok' : 'host';
-    state.apiKey = byok ? apiKey : '';
-    state.apiModel = els.clientApiModel?.value || 'gemini-2.5-flash';
     setRole(state.role);
 
     els.lobby.classList.add('hidden');
@@ -209,10 +188,11 @@
 
     s.on('room_update', (snap) => {
       renderMembers(snap?.members || []);
-      // 晚進房：補歷史（只補尚無 DOM 的訊息）
+      // Snapshots repair missed originals/translations after reconnect and preserve server order.
       if (Array.isArray(snap?.history)) {
         for (const item of snap.history) {
-          if (!document.getElementById(item.msgId)) {
+          const existing = document.getElementById(item.msgId);
+          if (!existing) {
             const mine = item.senderId === state.selfId;
             appendBubble({
               msgId: item.msgId,
@@ -221,6 +201,8 @@
               mine,
               translatedText: item.translatedText,
             });
+          } else if (item.translatedText) {
+            applyTranslation(item.msgId, item.translatedText, item.provider === 'error', { provider: item.provider });
           }
         }
       }
@@ -235,6 +217,11 @@
         senderName: data.senderName || '遠端與會者',
         mine: false,
       });
+      const pending = state.pendingTranslations[data.msgId];
+      if (pending) {
+        delete state.pendingTranslations[data.msgId];
+        applyTranslation(data.msgId, pending.translatedText, pending.error, pending);
+      }
     });
 
     s.on('receive_translation', (data) => {
@@ -253,11 +240,13 @@
         delete state.remoteMsgAt[data.msgId];
       }
 
-      applyTranslation(data.msgId, data.translatedText, data.error, {
+      const meta = {
         translateMs: data.translateMs,
         latencyNote,
         provider: data.provider,
-      });
+      };
+      if (document.getElementById(data.msgId)) applyTranslation(data.msgId, data.translatedText, data.error, meta);
+      else state.pendingTranslations[data.msgId] = { ...meta, translatedText: data.translatedText, error: data.error };
     });
 
     s.on('server_error', (data) => {
@@ -272,11 +261,8 @@
         roomId: state.roomId,
         displayName: state.displayName,
         role: state.role,
-        myLang: els.myLang.value,
-        targetLang: els.targetLang.value,
-        apiKey: state.apiKey || '',
-        apiModel: state.apiModel || 'gemini-2.5-flash',
-        guestLane: !!state.guestLane,
+        hostToken: state.hostToken,
+        invite: state.invite,
       },
       (res) => {
         if (!res?.ok) {
@@ -286,25 +272,11 @@
           return;
         }
         state.selfId = res.selfId;
-        state.translateMode = res.translateMode || (state.apiKey ? 'byok' : 'server');
+        state.translateMode = res.translateMode || 'server';
         renderMembers(res.snapshot?.members || []);
-        const modeLabel = state.guestLane
-          ? '測試通道｜自備 Gemini Key'
-          : state.translateMode === 'byok'
-            ? '翻譯：自備 Gemini Key'
-            : '翻譯：主辦方伺服器額度';
+        const modeLabel = res.access === 'host' ? '主持人已驗證｜伺服器翻譯' : '邀請已驗證｜伺服器翻譯';
         showDebug(`已加入房間 ${res.roomId}｜${modeLabel}`);
         setConn('live', modeLabel);
-        const shareParams = new URLSearchParams();
-        shareParams.set('room', state.roomId);
-        shareParams.set('role', state.role);
-        // 自用路徑保留完整 pathname，避免洩漏到公開 /；測試用 /try
-        const basePath = state.guestLane
-          ? '/try'
-          : state.hostLane
-            ? location.pathname.replace(/\/$/, '') || '/'
-            : '/';
-        history.replaceState(null, '', `${basePath}?${shareParams.toString()}`);
       }
     );
   }
@@ -346,6 +318,7 @@
 
   // ---- Bubbles ----
   function appendBubble({ msgId, text, senderName, mine, translatedText }) {
+    if (document.getElementById(msgId)) return msgId;
     if (els.placeholder) els.placeholder.style.display = 'none';
 
     const div = document.createElement('div');
@@ -411,7 +384,7 @@
   if (!SpeechRecognition) {
     els.toggleBtn.disabled = true;
     els.toggleBtn.textContent = '請用 Chrome';
-    alert('此瀏覽器不支援 Web Speech API，請使用 Google Chrome 或 Edge。');
+    els.toggleBtn.title = '請使用 Chrome 或 Edge，並重新開啟此邀請網址。';
   } else {
     initRecognition();
   }
@@ -635,4 +608,27 @@
     state.socket?.disconnect();
     location.href = location.pathname;
   });
+
+  if (els.createInviteBtn) {
+    els.createInviteBtn.addEventListener('click', async () => {
+      if (!state.hostToken) return;
+      const roomId = els.roomId.value.trim();
+      if (!roomId) return alert('請先輸入會議房號，再建立邀請。');
+      els.createInviteBtn.disabled = true;
+      try {
+        const response = await fetch('/api/invites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.hostToken}` },
+          body: JSON.stringify({ roomId, role: els.inviteRole?.value || 'jp', expiresInMinutes: els.inviteExpiry?.value || 45 }),
+        });
+        const result = await response.json();
+        if (!result.ok) throw new Error(result.error || '無法建立邀請');
+        els.inviteOutput.value = result.joinUrl;
+        els.inviteOutput.select();
+        await navigator.clipboard?.writeText(result.joinUrl);
+        showDebug('已建立限時邀請連結，已複製到剪貼簿。');
+      } catch (error) { alert(error.message || '建立邀請失敗'); }
+      finally { els.createInviteBtn.disabled = false; }
+    });
+  }
 })();

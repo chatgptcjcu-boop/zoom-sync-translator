@@ -34,12 +34,7 @@ npm install
 npm start
 ```
 
-瀏覽器開兩個視窗（公開測試通道，需各自貼 Gemini Key）：
-
-1. http://localhost:3100/try → 選「台灣端」→ 同房號 → 貼自己的 Key → 進入 → 開始收音  
-2. 無痕視窗同一 `/try` → 選「日本端」→ 同房號 → 貼 Key → 開始收音  
-
-自用（伺服器額度）：啟動 log 會印 `/r/<HOST_LOBBY_TOKEN>`，見 [docs/站長自用說明.md](./docs/站長自用說明.md)。
+先在 `.env` 設定 `GEMINI_API_KEY`、32 字元以上的 `HOST_LOBBY_TOKEN` 與獨立的 `INVITE_SECRET`。主持人開啟 `http://localhost:3100/r/<HOST_LOBBY_TOKEN>`，輸入房號並建立日本端／台灣端的限時邀請連結；受邀者透過該連結加入，不需要申請或輸入 Gemini Key。
 
 健康檢查：http://localhost:3100/health
 
@@ -49,11 +44,9 @@ npm start
 
 ## 正式會議建議流程
 
-1. 部署中繼站到有 **HTTPS** 的雲端（**首選 Railway**／Fly.io／VPS + Nginx）。  
-2. 在 `.env`／Railway 設定 **`TRANSLATE_PROVIDER=gemini`** 與 `GEMINI_API_KEY`（正式會議首選）。  
-3. 用**自用會議室路徑**（`/r/<HOST_LOBBY_TOKEN>`）開雙方視窗，例如：  
-   - 你：`https://你的網域/r/<token>?room=mtg-0320&role=tw&name=張老師`  
-   - 對方：同一路徑 `?room=mtg-0320&role=jp&name=田中`  
+1. 部署中繼站到有 **HTTPS** 的 Render Web Service。
+2. 在 Render 設定 **`TRANSLATE_PROVIDER=gemini`**、`GEMINI_API_KEY`、`HOST_LOBBY_TOKEN` 與 `INVITE_SECRET`。
+3. 主持人進入 `/r/<HOST_LOBBY_TOKEN>`，建立與房號、角色及期限綁定的邀請連結，僅把該連結給對方。
 4. 雙方開 Zoom；再各開一個 Chrome 視窗放在旁邊（或第二螢幕）開始收音。  
 5. 開會中可按「⌃」隱藏控制列，只留字幕；結束後按「↓」匯出逐字稿。
 
@@ -64,6 +57,7 @@ npm start
 | [docs/架構圖.md](./docs/架構圖.md) | **整體／部署／時序／模組 Mermaid 架構圖** |
 | [docs/公開版與自用版-網址與參數.md](./docs/公開版與自用版-網址與參數.md) | **公開／自用網址、查詢參數、進房欄位、環境變數對照** |
 | [docs/從Railway遷移.md](./docs/從Railway遷移.md) | **試用到期：升級接替或搬到 Fly／Render／VPS** |
+| [docs/RENDER-DEPLOYMENT.md](./docs/RENDER-DEPLOYMENT.md) | **Render、Gandi 與正式上線順序** |
 | [docs/本機Cloudflare-Tunnel.md](./docs/本機Cloudflare-Tunnel.md) | **$0：本機 + Cloudflare Tunnel 對外** |
 | [docs/整體程序與過程.md](./docs/整體程序與過程.md) | 架構、URL 地圖、部署與決策全文 |
 | [docs/給測試者的說明.md](./docs/給測試者的說明.md) | **可轉傳**的公開測試說明 |
@@ -92,8 +86,9 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 | `TRANSLATE_PROVIDER` | **`gemini`（預設／正式）** / `deepl` / `openai` / `mymemory` |
 | `GEMINI_API_KEY` | Google AI Studio Key（主辦方額度） |
 | `GEMINI_MODEL` | 預設 `gemini-2.5-flash` |
-| `HOST_LOBBY_TOKEN` | 自用會議室路徑密鑰；網址為 `/r/<token>`，勿外傳 |
-| `REQUIRE_CLIENT_API_KEY` | 選用；公開測試請用 `/` 與 `/try` 即可 |
+| `HOST_LOBBY_TOKEN` | 32 字元以上的主持人憑證；網址為 `/r/<token>`，勿外傳 |
+| `INVITE_SECRET` | 與主持人憑證不同的 32 字元以上簽章祕鑰，簽發限時邀請 |
+| `MAX_TRANSLATIONS_PER_MINUTE` | 每房每分鐘翻譯上限，預設 24 |
 | `DEEPL_API_KEY` | 選用備援 |
 | `OPENAI_API_KEY` | 選用備援（`TRANSLATE_PROVIDER` 非 gemini 時才會進鏈） |
 | `CORS_ORIGIN` | 正式環境改成你的網域，不要用 `*` |
@@ -101,13 +96,7 @@ npm run smoke -- https://xxx.up.railway.app  # 對正式網址煙測
 
 翻譯會依「主引擎 → 備援引擎」自動降級；單房間有佇列，避免瞬間打爆 API。
 
-**給別人測試（可公開）：**
-
-- 說明：https://zoom-sync-translator-production.up.railway.app/
-- 會議室：https://zoom-sync-translator-production.up.railway.app/try  
-見 [docs/給測試者的說明.md](./docs/給測試者的說明.md)
-
-**你自己開會：** 用 `/r/<HOST_LOBBY_TOKEN>`（啟動 log 會印；勿轉傳）。
+**受邀者參加會議：** 只使用主持人簽發的 `/join?invite=...` 限時連結；公開 `/try` 舊連結已不再提供會議室。
 
 ---
 
