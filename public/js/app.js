@@ -51,7 +51,7 @@
     translateMode: 'server',
     hostLane: !!(window.__SYNCSUB_HOST__ || /^\/r\//.test(location.pathname)),
     hostToken: /^\/r\/([^/]+)/.exec(location.pathname)?.[1] || '',
-    invite: new URLSearchParams(location.search).get('invite') || '',
+    invite: /^\/j\/([A-Za-z0-9_-]+)\/?$/.exec(location.pathname)?.[1] || new URLSearchParams(location.search).get('invite') || '',
     isRecording: false,
     recognition: null,
     restartTimer: null,
@@ -143,29 +143,26 @@
   els.roleTw.addEventListener('click', () => setRole('tw'));
   els.roleJp.addEventListener('click', () => setRole('jp'));
 
-  // The claim is decoded only to make an invitation convenient to use. The
-  // server verifies its signature and expiry again before allowing a socket
-  // into the room, so this browser-side value is never an authorization check.
-  function readInviteClaim(token) {
+  async function applyInviteDefaults() {
+    if (!state.invite) return;
+    els.enterBtn.disabled = true;
+    let claim;
     try {
-      const body = String(token || '').split('.')[0];
-      const padded = body.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (body.length % 4)) % 4);
-      const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
-      const claim = JSON.parse(new TextDecoder().decode(bytes));
-      if (claim?.v !== 1 || !['tw', 'jp'].includes(claim.role) || !/^[a-zA-Z0-9_-]{3,64}$/.test(claim.roomId)) return null;
-      if (!Number.isFinite(claim.exp) || claim.exp <= Date.now()) return null;
-      return claim;
-    } catch (_) {
-      return null;
+      const response = await fetch('/api/invites/resolve', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ invite: state.invite }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error);
+      claim = result.claim;
+    } catch (error) {
+      showLobbyError(error.message || '接続を確認して再読み込みしてください。／請檢查網路並重新整理。');
+      return;
     }
-  }
-
-  function applyInviteDefaults() {
-    const claim = readInviteClaim(state.invite);
-    if (!claim) return;
     els.roomId.value = claim.roomId;
     els.roomId.readOnly = true;
     setRole(claim.role);
+    els.enterBtn.disabled = false;
     els.inviteRole?.closest('.field')?.classList.add('hidden');
     els.roleTw?.closest('.field')?.classList.add('hidden');
     const lead = document.querySelector('.lobby .lead');
@@ -194,6 +191,18 @@
     els.showPanelBtn.title = '操作パネルを表示';
     els.placeholder.innerHTML = '「マイクを開始」を押すと、あなたの発言がここに表示されます。<br>相手には繁體中文の翻訳字幕が同期されます。';
     els.interimBox.textContent = '認識中…';
+  }
+
+  function showLobbyError(message) {
+    let notice = document.getElementById('inviteError');
+    if (!notice) {
+      notice = document.createElement('p');
+      notice.id = 'inviteError';
+      notice.setAttribute('role', 'alert');
+      notice.style.color = 'var(--danger)';
+      els.enterBtn.before(notice);
+    }
+    notice.textContent = message;
   }
 
   function requestedRoleFromLanguages() {
@@ -374,6 +383,9 @@
       (res) => {
         if (!res?.ok) {
           showDebug(res?.error || '加入房間失敗');
+          showLobbyError(state.uiLocale === 'ja-JP'
+            ? '会議室に入れませんでした。招待の期限切れや満室の可能性があります。主催者に新しいリンクをご依頼ください。'
+            : (res?.error || '加入房間失敗，請重新取得邀請。'));
           els.room.classList.add('hidden');
           els.lobby.classList.remove('hidden');
           return;
@@ -716,7 +728,7 @@
     stopRecording();
     stopPing();
     state.socket?.disconnect();
-    location.href = location.pathname;
+    location.href = location.pathname + location.search;
   });
 
   if (els.createInviteBtn) {

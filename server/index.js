@@ -96,7 +96,17 @@ app.get('/', (_req, res) => {
 
 app.get(['/try', '/try/', '/guest', '/guest/'], (_req, res) => res.redirect(302, '/'));
 
-app.get('/join', (_req, res) => res.sendFile(path.join(pagesDir, 'host.html')));
+app.get(['/join', '/j/:invite'], (_req, res) => {
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Cache-Control', 'no-store');
+  res.sendFile(path.join(pagesDir, 'host.html'));
+});
+app.post('/api/invites/resolve', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const claim = verifyInvite(req.body?.invite);
+  if (!claim) return res.status(403).json({ ok: false, error: '招待リンクが無効または期限切れです。主催者に新しいリンクをご依頼ください。／邀請無效或已過期，請向主持人索取新連結。' });
+  res.json({ ok: true, claim });
+});
 if (HOST_LOBBY_PATH) {
   app.get([HOST_LOBBY_PATH, `${HOST_LOBBY_PATH}/`], (_req, res) => res.sendFile(path.join(pagesDir, 'host.html')));
 }
@@ -164,7 +174,7 @@ app.post('/api/invites', (req, res) => {
   try {
     const invite = createInvite(req.body || {});
     const origin = `${req.protocol}://${req.get('host')}`;
-    res.status(201).json({ ok: true, invite, joinUrl: `${origin}/join?invite=${encodeURIComponent(invite)}` });
+    res.status(201).json({ ok: true, invite, joinUrl: `${origin}/j/${invite}`, expiresAt: verifyInvite(invite).exp });
   } catch (error) { res.status(400).json({ ok: false, error: error.message }); }
 });
 

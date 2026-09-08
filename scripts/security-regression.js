@@ -36,6 +36,27 @@ async function main() {
   const inviteResponse = await fetch(`${base}/api/invites`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${hostToken}` }, body: JSON.stringify({ roomId: 'private-room', role: 'jp', expiresInMinutes: 30 }) });
   const inviteData = await inviteResponse.json();
   assert(inviteData.ok && inviteData.invite, 'host could not create invite');
+  assert(inviteData.joinUrl.includes('/j/') && inviteData.invite.length < 70, 'invite was not shortened');
+  assert((await fetch(inviteData.joinUrl)).ok, 'short invite page unavailable');
+  const resolveInvite = async (invite) => {
+    const response = await fetch(`${base}/api/invites/resolve`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invite }) });
+    return response.json();
+  };
+  const resolved = await resolveInvite(inviteData.invite);
+  assert(resolved.ok && resolved.claim.roomId === 'private-room' && resolved.claim.role === 'jp', 'invite defaults not verified');
+  const tampered = inviteData.invite.slice(0, 20) + (inviteData.invite[20] === 'A' ? 'B' : 'A') + inviteData.invite.slice(21);
+  assert(!(await resolveInvite(tampered)).ok, 'tampered short invite accepted');
+  process.env.INVITE_SECRET = inviteSecret;
+  const access = require('../server/access');
+  assert(access.verifyInvite(inviteData.invite, 'private-room'), 'invite cannot be verified by a separate process/module');
+  const clockNow = Date.now;
+  Date.now = () => resolved.claim.exp + 1;
+  assert(!access.verifyInvite(inviteData.invite, 'private-room'), 'expired invitation accepted');
+  Date.now = clockNow;
+  const crypto = require('crypto');
+  const legacyBody = Buffer.from(JSON.stringify({ v: 1, roomId: 'private-room', role: 'jp', exp: Date.now() + 60000 })).toString('base64url');
+  const legacy = legacyBody + '.' + crypto.createHmac('sha256', inviteSecret).update(legacyBody).digest('base64url');
+  assert((await resolveInvite(legacy)).ok, 'valid legacy link no longer works');
   const guest = await connect();
   const guestJoin = await join(guest, { roomId: 'private-room', role: 'tw', invite: inviteData.invite });
   assert(guestJoin.ok && guestJoin.snapshot.members.find((member) => member.socketId === guest.id).role === 'jp', 'server trusted guest role');
