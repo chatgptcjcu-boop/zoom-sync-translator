@@ -66,7 +66,33 @@
     remoteMsgAt: {},
     pendingTranslations: {},
     metrics: { rtt: null, lastTranslateMs: null },
+    uiLocale: 'zh-TW',
   };
+
+  const jaCopy = {
+    '已連線中繼站': '字幕サーバーに接続しました',
+    '已連線，待命中': '接続済み・待機中',
+    '尚未連線': '未接続',
+    '麥克風開啟中': 'マイクはオンです',
+    '麥克風已啟動': 'マイクを開始しました',
+    '正在聽寫…': '音声を認識中…',
+    '等待發話…': '発話をお待ちしています…',
+    '麥克風權限被拒': 'マイクの許可が拒否されました',
+    '語音辨識網路錯誤（需連上網路）': '音声認識のネットワークエラーです（インターネット接続を確認してください）',
+    '無法讀取麥克風音量': 'マイク音量を取得できません',
+    '啟動失敗：請用 localhost 或 HTTPS': '開始できません。HTTPS の招待URLを Chrome で開いてください。',
+    '翻譯中…': '翻訳中…',
+    '邀請已驗證｜伺服器翻譯': '招待を確認しました・サーバー翻訳',
+  };
+
+  function ui(text) {
+    return state.uiLocale === 'ja-JP' ? (jaCopy[text] || text) : text;
+  }
+
+  function setChipLabel(select, label) {
+    const chip = select?.closest('.chip');
+    if (chip?.firstChild?.nodeType === Node.TEXT_NODE) chip.firstChild.nodeValue = `${label} `;
+  }
 
   function ensureLatencyPill() {
     if (els.latencyPill) return;
@@ -75,8 +101,10 @@
     const pill = document.createElement('div');
     pill.id = 'latencyPill';
     pill.className = 'latency-pill';
-    pill.title = 'RTT：與中繼站來回延遲；譯：伺服器呼叫翻譯 API 耗時';
-    pill.textContent = '延遲：—';
+    pill.title = state.uiLocale === 'ja-JP'
+      ? 'RTT：字幕サーバーとの往復時間／訳：翻訳APIの処理時間'
+      : 'RTT：與中繼站來回延遲；譯：伺服器呼叫翻譯 API 耗時';
+    pill.textContent = state.uiLocale === 'ja-JP' ? '遅延：—' : '延遲：—';
     leftCol.insertBefore(pill, els.debugLog);
     els.latencyPill = pill;
   }
@@ -86,7 +114,7 @@
     if (!els.latencyPill) return;
     const rtt = state.metrics.rtt != null ? `${state.metrics.rtt}ms` : '—';
     const tr = state.metrics.lastTranslateMs != null ? `${state.metrics.lastTranslateMs}ms` : '—';
-    els.latencyPill.textContent = `RTT ${rtt}｜譯 ${tr}`;
+    els.latencyPill.textContent = `RTT ${rtt}｜${state.uiLocale === 'ja-JP' ? '訳' : '譯'} ${tr}`;
     const r = state.metrics.rtt || 0;
     els.latencyPill.classList.remove('warn', 'bad');
     if (r > 2000) els.latencyPill.classList.add('bad');
@@ -141,9 +169,31 @@
     els.inviteRole?.closest('.field')?.classList.add('hidden');
     els.roleTw?.closest('.field')?.classList.add('hidden');
     const lead = document.querySelector('.lobby .lead');
-    if (lead) lead.textContent = claim.role === 'jp'
-      ? '会議への招待が確認されました。お名前を入力し、「会議室に入る」を押してマイクを許可してください。日本語は繁體中文に翻訳されます。'
-      : '會議邀請已載入。請輸入姓名、進入會議室並允許麥克風；繁中會翻譯為日文。';
+    if (claim.role !== 'jp') return;
+
+    state.uiLocale = 'ja-JP';
+    document.documentElement.lang = 'ja';
+    document.title = 'KirokuFlow 日中リアルタイム字幕';
+    document.querySelector('.badge-host').textContent = 'KirokuFlow · 招待制リアルタイム字幕';
+    if (lead) lead.textContent = '会議への招待を確認しました。日本語の発言は繁體中文に翻訳されます。';
+    els.displayName.closest('.field').querySelector('label').textContent = '表示名';
+    els.displayName.placeholder = '例：田中教授';
+    els.roomId.closest('.field').querySelector('label').textContent = '会議室番号（設定済み）';
+    els.serverUrl.closest('.field').classList.add('hidden');
+    els.enterBtn.textContent = '会議室に入る';
+    document.querySelector('.lobby .hint').innerHTML =
+      '<strong>使い方（約30秒）</strong><br>1. 表示名を入力し、「会議室に入る」を押します。<br>2. ブラウザが表示したら、マイクを「許可」します。<br>3. 「マイクを開始」を押して日本語で話します。字幕は相手に繁體中文で表示されます。';
+    setChipLabel(els.myLang, '話す言語');
+    setChipLabel(els.targetLang, '翻訳先');
+    els.myLang.disabled = true;
+    els.targetLang.disabled = true;
+    els.toggleBtn.textContent = 'マイクを開始';
+    els.exportBtn.title = '字幕を保存';
+    els.leaveBtn.title = '会議室を退出';
+    els.hidePanelBtn.title = '操作パネルを隠す';
+    els.showPanelBtn.title = '操作パネルを表示';
+    els.placeholder.innerHTML = '「マイクを開始」を押すと、あなたの発言がここに表示されます。<br>相手には繁體中文の翻訳字幕が同期されます。';
+    els.interimBox.textContent = '認識中…';
   }
 
   function requestedRoleFromLanguages() {
@@ -359,17 +409,19 @@
 
   function setConn(mode, text) {
     els.connDot.className = `dot ${mode}`;
-    els.statusPill.textContent = text;
+    els.statusPill.textContent = ui(text);
   }
 
   function renderMembers(members) {
-    const names = members.map((m) => m.displayName).join('、') || '尚無其他成員';
-    els.membersPill.textContent = `房間人數：${members.length}｜${names}`;
+    const names = members.map((m) => m.displayName).join('、') || (state.uiLocale === 'ja-JP' ? 'ほかの参加者はいません' : '尚無其他成員');
+    els.membersPill.textContent = state.uiLocale === 'ja-JP'
+      ? `参加者：${members.length}名｜${names}`
+      : `房間人數：${members.length}｜${names}`;
   }
 
   function showDebug(msg) {
     console.log('[SyncSub]', msg);
-    els.debugLog.textContent = msg;
+    els.debugLog.textContent = ui(msg);
     els.debugLog.classList.add('show');
   }
 
@@ -385,7 +437,7 @@
       <div class="who">${escapeHtml(senderName)}${mine ? '' : ''}</div>
       <div class="original">${escapeHtml(text)}</div>
       <div class="translation-target ${translatedText ? 'translated' : 'pending'}">
-        ${translatedText ? escapeHtml(translatedText) : '翻譯中…'}
+        ${translatedText ? escapeHtml(translatedText) : ui('翻譯中…')}
       </div>
       <div class="latency-meta hidden"></div>
     `;
@@ -441,8 +493,8 @@
 
   if (!SpeechRecognition) {
     els.toggleBtn.disabled = true;
-    els.toggleBtn.textContent = '請用 Chrome';
-    els.toggleBtn.title = '請使用 Chrome 或 Edge，並重新開啟此邀請網址。';
+    els.toggleBtn.textContent = state.uiLocale === 'ja-JP' ? 'Chrome を使用' : '請用 Chrome';
+    els.toggleBtn.title = state.uiLocale === 'ja-JP' ? 'Chrome または Edge で招待URLを開き直してください。' : '請使用 Chrome 或 Edge，並重新開啟此邀請網址。';
   } else {
     initRecognition();
   }
@@ -461,7 +513,7 @@
     };
 
     recognition.onspeechstart = () => {
-      els.statusPill.textContent = '正在聽寫…';
+      els.statusPill.textContent = ui('正在聽寫…');
     };
 
     recognition.onresult = (event) => {
@@ -505,7 +557,7 @@
         alert('請允許麥克風權限。正式會議請用 HTTPS 網址開啟。');
         stopRecording();
       } else if (event.error === 'no-speech') {
-        els.statusPill.textContent = '等待發話…';
+        els.statusPill.textContent = ui('等待發話…');
       } else if (event.error === 'network') {
         showDebug('語音辨識網路錯誤（需連上網路）');
       } else {
@@ -572,13 +624,13 @@
 
   function updateRecUI() {
     if (state.isRecording) {
-      els.toggleBtn.textContent = '停止收音';
+      els.toggleBtn.textContent = state.uiLocale === 'ja-JP' ? 'マイクを停止' : '停止收音';
       els.toggleBtn.classList.add('stop');
-      els.statusPill.textContent = '麥克風開啟中';
+      els.statusPill.textContent = ui('麥克風開啟中');
     } else {
-      els.toggleBtn.textContent = '開始收音';
+      els.toggleBtn.textContent = state.uiLocale === 'ja-JP' ? 'マイクを開始' : '開始收音';
       els.toggleBtn.classList.remove('stop');
-      els.statusPill.textContent = state.socket?.connected ? '已連線，待命中' : '尚未連線';
+      els.statusPill.textContent = ui(state.socket?.connected ? '已連線，待命中' : '尚未連線');
     }
   }
 
