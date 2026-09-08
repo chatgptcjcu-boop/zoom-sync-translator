@@ -115,6 +115,37 @@
   els.roleTw.addEventListener('click', () => setRole('tw'));
   els.roleJp.addEventListener('click', () => setRole('jp'));
 
+  // The claim is decoded only to make an invitation convenient to use. The
+  // server verifies its signature and expiry again before allowing a socket
+  // into the room, so this browser-side value is never an authorization check.
+  function readInviteClaim(token) {
+    try {
+      const body = String(token || '').split('.')[0];
+      const padded = body.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - (body.length % 4)) % 4);
+      const bytes = Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+      const claim = JSON.parse(new TextDecoder().decode(bytes));
+      if (claim?.v !== 1 || !['tw', 'jp'].includes(claim.role) || !/^[a-zA-Z0-9_-]{3,64}$/.test(claim.roomId)) return null;
+      if (!Number.isFinite(claim.exp) || claim.exp <= Date.now()) return null;
+      return claim;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function applyInviteDefaults() {
+    const claim = readInviteClaim(state.invite);
+    if (!claim) return;
+    els.roomId.value = claim.roomId;
+    els.roomId.readOnly = true;
+    setRole(claim.role);
+    els.inviteRole?.closest('.field')?.classList.add('hidden');
+    els.roleTw?.closest('.field')?.classList.add('hidden');
+    const lead = document.querySelector('.lobby .lead');
+    if (lead) lead.textContent = claim.role === 'jp'
+      ? '会議への招待が確認されました。お名前を入力し、「会議室に入る」を押してマイクを許可してください。日本語は繁體中文に翻訳されます。'
+      : '會議邀請已載入。請輸入姓名、進入會議室並允許麥克風；繁中會翻譯為日文。';
+  }
+
   function requestedRoleFromLanguages() {
     return els.myLang.value === 'ja-JP' || els.targetLang.value === 'zh-TW' ? 'jp' : 'tw';
   }
@@ -146,6 +177,7 @@
     if (q.get('name')) els.displayName.value = q.get('name');
     if (q.get('role') === 'jp') setRole('jp');
     if (q.get('server') && els.serverUrl) els.serverUrl.value = q.get('server');
+    applyInviteDefaults();
   })();
 
   els.enterBtn.addEventListener('click', enterRoom);
