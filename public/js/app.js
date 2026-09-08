@@ -244,6 +244,7 @@
         translateMs: data.translateMs,
         latencyNote,
         provider: data.provider,
+        reason: data.reason,
       };
       if (document.getElementById(data.msgId)) applyTranslation(data.msgId, data.translatedText, data.error, meta);
       else state.pendingTranslations[data.msgId] = { ...meta, translatedText: data.translatedText, error: data.error };
@@ -347,6 +348,7 @@
     target.classList.add('translated');
     if (isError) target.style.color = 'var(--danger)';
     target.textContent = translatedText;
+    if (isError && meta.reason) showDebug(meta.reason);
     if (box.classList.contains('mine')) box.classList.add('done');
 
     const metaEl = box.querySelector('.latency-meta');

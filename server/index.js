@@ -63,6 +63,26 @@ function escapePlain(text) {
     .replace(/"/g, '&quot;');
 }
 
+function safeTranslationFailureReason(error) {
+  const message = String(error?.message || '');
+  if (message.includes('credentials_or_api_access')) {
+    return 'Gemini API 金鑰無效，或尚未取得 Gemini API 存取權。請檢查 Render 的 GEMINI_API_KEY。';
+  }
+  if (message.includes('model_not_available')) {
+    return 'Gemini 模型無法使用。請檢查 Render 的 GEMINI_MODEL 是否為此 API 金鑰可用的模型。';
+  }
+  if (message.includes('quota_or_rate_limit')) {
+    return 'Gemini 額度或速率已達上限。請檢查 Google AI Studio 專案的配額與帳務設定。';
+  }
+  if (message.includes('request_timeout') || message.includes('provider_unavailable')) {
+    return '翻譯服務暫時沒有回應，請稍後再試。';
+  }
+  if (message.includes('request_rejected')) {
+    return 'Gemini 拒絕了翻譯請求。請檢查 API 金鑰的限制與模型設定。';
+  }
+  return '翻譯服務暫時無法使用，請檢查 Render 的翻譯設定。';
+}
+
 app.use(express.json({ limit: '32kb' }));
 
 const publicDir = path.join(__dirname, '..', 'public');
@@ -281,7 +301,8 @@ io.on('connection', (socket) => {
         );
       } catch (error) {
         const translateMs = Date.now() - translateStarted;
-        console.error(`[翻譯失敗] ${roomId}`, error.message);
+        const reason = safeTranslationFailureReason(error);
+        console.error(`[翻譯失敗] ${roomId}`, reason, error.message);
         const fallback = `[翻譯失敗] ${escapePlain(text)}`;
         rooms.updateTranslation(roomId, msgId, fallback, 'error');
         io.to(roomId).emit('receive_translation', {
@@ -291,6 +312,7 @@ io.on('connection', (socket) => {
           translateMs,
           sentAt: speechSentAt,
           error: true,
+          reason,
         });
         io.to(roomId).emit('room_update', rooms.snapshot(roomId));
       }
