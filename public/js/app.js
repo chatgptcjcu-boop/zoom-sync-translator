@@ -163,6 +163,16 @@
     els.roomId.readOnly = true;
     setRole(claim.role);
     els.enterBtn.disabled = false;
+    const expiryNotice = document.createElement('p');
+    expiryNotice.className = 'hint';
+    const japanese = claim.role === 'jp';
+    const expiryText = new Intl.DateTimeFormat(japanese ? 'ja-JP' : 'zh-TW', {
+      timeZone: japanese ? 'Asia/Tokyo' : 'Asia/Taipei', dateStyle: 'medium', timeStyle: 'short',
+    }).format(new Date(claim.exp));
+    expiryNotice.textContent = japanese
+      ? `このリンクは練習にも使えます。有効期限：${expiryText}（日本時間）。練習後も同じリンクから再入室できます。`
+      : `此連結可提前練習，有效至 ${expiryText}（台灣時間），可重複進入。`;
+    els.enterBtn.before(expiryNotice);
     els.inviteRole?.closest('.field')?.classList.add('hidden');
     els.roleTw?.closest('.field')?.classList.add('hidden');
     const lead = document.querySelector('.lobby .lead');
@@ -738,10 +748,12 @@
       if (!roomId) return alert('請先輸入會議房號，再建立邀請。');
       els.createInviteBtn.disabled = true;
       try {
+        const expiryValue = els.inviteExpiry?.value || '45';
+        const expiry = expiryValue.includes('T') ? { expiresAt: expiryValue } : { expiresInMinutes: expiryValue };
         const response = await fetch('/api/invites', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${state.hostToken}` },
-          body: JSON.stringify({ roomId, role: els.inviteRole?.value || 'jp', expiresInMinutes: els.inviteExpiry?.value || 45 }),
+          body: JSON.stringify({ roomId, role: els.inviteRole?.value || 'jp', ...expiry }),
         });
         const result = await response.json();
         if (!result.ok) throw new Error(result.error || '無法建立邀請');

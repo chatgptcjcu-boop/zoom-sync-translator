@@ -53,6 +53,16 @@ async function main() {
   Date.now = () => resolved.claim.exp + 1;
   assert(!access.verifyInvite(inviteData.invite, 'private-room'), 'expired invitation accepted');
   Date.now = clockNow;
+  Date.now = () => Date.parse('2026-09-09T10:00:00+08:00');
+  const scheduled = access.createInvite({ roomId: 'practice-meeting', role: 'jp', expiresAt: '2026-09-16T12:00:00+08:00' });
+  assert(access.verifyInvite(scheduled, 'practice-meeting'), 'scheduled invitation not available for practice');
+  Date.now = () => Date.parse('2026-09-16T11:00:00+09:00');
+  assert(access.verifyInvite(scheduled, 'practice-meeting'), 'scheduled invitation expired before meeting');
+  Date.now = () => Date.parse('2026-09-16T13:00:00+09:00');
+  assert(!access.verifyInvite(scheduled, 'practice-meeting'), 'scheduled invitation valid after deadline');
+  assert(require('assert').throws(() => access.createInvite({ roomId: 'practice-meeting', role: 'jp', expiresAt: 'invalid' })) === undefined, 'invalid expiry accepted');
+  require('assert').throws(() => access.createInvite({ roomId: 'practice-meeting', role: 'jp', expiresAt: '2027-09-16T12:00:00+08:00' }));
+  Date.now = clockNow;
   const crypto = require('crypto');
   const legacyBody = Buffer.from(JSON.stringify({ v: 1, roomId: 'private-room', role: 'jp', exp: Date.now() + 60000 })).toString('base64url');
   const legacy = legacyBody + '.' + crypto.createHmac('sha256', inviteSecret).update(legacyBody).digest('base64url');
