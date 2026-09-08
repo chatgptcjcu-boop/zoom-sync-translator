@@ -61,6 +61,7 @@ npm start
 
 | 文件 | 說明 |
 |------|------|
+| [docs/架構圖.md](./docs/架構圖.md) | **整體／部署／時序／模組 Mermaid 架構圖** |
 | [docs/公開版與自用版-網址與參數.md](./docs/公開版與自用版-網址與參數.md) | **公開／自用網址、查詢參數、進房欄位、環境變數對照** |
 | [docs/從Railway遷移.md](./docs/從Railway遷移.md) | **試用到期：升級接替或搬到 Fly／Render／VPS** |
 | [docs/本機Cloudflare-Tunnel.md](./docs/本機Cloudflare-Tunnel.md) | **$0：本機 + Cloudflare Tunnel 對外** |
