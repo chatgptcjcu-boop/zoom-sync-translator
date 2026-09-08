@@ -8,6 +8,7 @@
     "dev": "node --watch server/index.js",
     "health": "curl -s http://localhost:3100/health | python3 -m json.tool",
     "smoke": "node scripts/smoke-dual.js",
+    "test": "node scripts/security-regression.js",
     "bench:100": "node scripts/bench-100.js local",
     "tunnel": "cloudflared tunnel --url http://localhost:3100",
     "railway": "railway"

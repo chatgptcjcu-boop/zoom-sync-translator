@@ -11,15 +11,14 @@ const { Server } = require('socket.io');
 const { translate, providerChain } = require('./translate');
 const { RoomManager } = require('./rooms');
 const { envGet, envHas } = require('./env');
+const { configuredSecret, createInvite, verifyInvite, verifyHostToken } = require('./access');
 
 const PORT = Number(process.env.PORT) || 3100;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const startedAt = Date.now();
-// 自用會議室路徑密鑰（別人猜不到）；可在 Railway Variables 改掉
-const HOST_LOBBY_TOKEN = String(
-  process.env.HOST_LOBBY_TOKEN || envGet('SYNC_HOST_LOBBY_TOKEN') || 'ss-73c8b2b0'
-).replace(/[^a-zA-Z0-9_-]/g, '');
-const HOST_LOBBY_PATH = `/r/${HOST_LOBBY_TOKEN || 'ss-73c8b2b0'}`;
+const HOST_LOBBY_TOKEN = configuredSecret('HOST_LOBBY_TOKEN');
+const HOST_LOBBY_PATH = HOST_LOBBY_TOKEN ? `/r/${HOST_LOBBY_TOKEN}` : null;
+const MAX_TRANSLATIONS_PER_MINUTE = Math.min(60, Math.max(5, Number(process.env.MAX_TRANSLATIONS_PER_MINUTE) || 24));
 
 const app = express();
 const server = http.createServer(app);
@@ -64,6 +63,26 @@ function escapePlain(text) {
     .replace(/"/g, '&quot;');
 }
 
+function safeTranslationFailureReason(error) {
+  const message = String(error?.message || '');
+  if (message.includes('credentials_or_api_access')) {
+    return 'Gemini API 金鑰無效，或尚未取得 Gemini API 存取權。請檢查 Render 的 GEMINI_API_KEY。';
+  }
+  if (message.includes('model_not_available')) {
+    return 'Gemini 模型無法使用。請檢查 Render 的 GEMINI_MODEL 是否為此 API 金鑰可用的模型。';
+  }
+  if (message.includes('quota_or_rate_limit')) {
+    return 'Gemini 額度或速率已達上限。請檢查 Google AI Studio 專案的配額與帳務設定。';
+  }
+  if (message.includes('request_timeout') || message.includes('provider_unavailable')) {
+    return '翻譯服務暫時沒有回應，請稍後再試。';
+  }
+  if (message.includes('request_rejected')) {
+    return 'Gemini 拒絕了翻譯請求。請檢查 API 金鑰的限制與模型設定。';
+  }
+  return '翻譯服務暫時無法使用，請檢查 Render 的翻譯設定。';
+}
+
 app.use(express.json({ limit: '32kb' }));
 
 const publicDir = path.join(__dirname, '..', 'public');
@@ -75,13 +94,22 @@ app.get('/', (_req, res) => {
   res.sendFile(path.join(publicDir, 'index.html'));
 });
 
-app.get(['/try', '/try/', '/guest', '/guest/'], (_req, res) => {
-  res.sendFile(path.join(pagesDir, 'try.html'));
-});
+app.get(['/try', '/try/', '/guest', '/guest/'], (_req, res) => res.redirect(302, '/'));
 
-app.get([HOST_LOBBY_PATH, `${HOST_LOBBY_PATH}/`], (_req, res) => {
+app.get(['/join', '/j/:invite'], (_req, res) => {
+  res.set('Referrer-Policy', 'no-referrer');
+  res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(pagesDir, 'host.html'));
 });
+app.post('/api/invites/resolve', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const claim = verifyInvite(req.body?.invite);
+  if (!claim) return res.status(403).json({ ok: false, error: '招待リンクが無効または期限切れです。主催者に新しいリンクをご依頼ください。／邀請無效或已過期，請向主持人索取新連結。' });
+  res.json({ ok: true, claim });
+});
+if (HOST_LOBBY_PATH) {
+  app.get([HOST_LOBBY_PATH, `${HOST_LOBBY_PATH}/`], (_req, res) => res.sendFile(path.join(pagesDir, 'host.html')));
+}
 
 // 避免直接猜到靜態檔名
 app.get(['/host.html', '/try.html', '/guest.html'], (_req, res) => {
@@ -105,9 +133,6 @@ app.get('/health', (_req, res) => {
     )
     .sort();
 
-  const requireClientApiKey =
-    String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true';
-
   res.json({
     ok: true,
     uptimeSec: Math.floor((Date.now() - startedAt) / 1000),
@@ -120,17 +145,16 @@ app.get('/health', (_req, res) => {
       hasGeminiKey: geminiKey.length > 0,
       hasOpenAIKey: openaiKey.length > 0,
       hasDeepLKey: deeplKey.length > 0,
-      requireClientApiKey,
+      secureMeetingReady: Boolean(HOST_LOBBY_TOKEN && configuredSecret('INVITE_SECRET')),
+      maxTranslationsPerMinute: MAX_TRANSLATIONS_PER_MINUTE,
       TRUST_PROXY: envGet('TRUST_PROXY') || '(unset)',
       relatedEnvNames,
       railwayDeploymentId: process.env.RAILWAY_DEPLOYMENT_ID || '(unset)',
       railwayReplicaId: process.env.RAILWAY_REPLICA_ID || '(unset)',
       railwayServiceName: process.env.RAILWAY_SERVICE_NAME || '(unset)',
-      hint: requireClientApiKey
-        ? 'Guests must enter their own Gemini API Key on the lobby (BYOK).'
-        : geminiKey
-          ? 'ok — Gemini primary; guests can choose BYOK on lobby to avoid using host quota'
-          : 'Set GEMINI_API_KEY for host quota, or REQUIRE_CLIENT_API_KEY=true so everyone brings their own key.',
+      hint: HOST_LOBBY_TOKEN && configuredSecret('INVITE_SECRET')
+        ? (geminiKey ? 'ok — signed invitations and server-side translation are ready.' : 'Set GEMINI_API_KEY before real meetings.')
+        : 'Set distinct HOST_LOBBY_TOKEN and INVITE_SECRET values of at least 32 characters.',
     },
   });
 });
@@ -139,12 +163,19 @@ app.get('/api/config', (_req, res) => {
   res.json({
     defaultProvider: envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || 'gemini',
     providers: providerChain().map((p) => p.name),
-    requireClientApiKey: String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true',
-    byokEnabled: true,
-    // 只公開測試入口；自用路徑不回傳給前端
-    publicGuidePath: '/',
-    publicTryPath: '/try',
+    secureMeetingReady: Boolean(HOST_LOBBY_TOKEN && configuredSecret('INVITE_SECRET')),
+    maxTranslationsPerMinute: MAX_TRANSLATIONS_PER_MINUTE,
   });
+});
+
+app.post('/api/invites', (req, res) => {
+  const token = String(req.get('authorization') || '').replace(/^Bearer\s+/i, '');
+  if (!verifyHostToken(token)) return res.status(401).json({ ok: false, error: 'Host authorization required' });
+  try {
+    const invite = createInvite(req.body || {});
+    const origin = `${req.protocol}://${req.get('host')}`;
+    res.status(201).json({ ok: true, invite, joinUrl: `${origin}/j/${invite}`, expiresAt: verifyInvite(invite).exp });
+  } catch (error) { res.status(400).json({ ok: false, error: error.message }); }
 });
 
 io.on('connection', (socket) => {
@@ -158,7 +189,19 @@ io.on('connection', (socket) => {
         return;
       }
 
-      // 離開其他房間
+      const hostToken = String(payload.hostToken || '');
+      const invite = verifyInvite(payload.invite, roomId);
+      const isHost = verifyHostToken(hostToken);
+      if (!isHost && !invite) {
+        if (typeof ack === 'function') ack({ ok: false, error: '邀請連結無效、已過期，或無權加入此會議室' });
+        return;
+      }
+      const role = isHost ? (payload.role === 'jp' ? 'jp' : 'tw') : invite.role;
+      const languages = role === 'jp'
+        ? { myLang: 'ja-JP', targetLang: 'zh-TW' }
+        : { myLang: 'zh-TW', targetLang: 'ja-JP' };
+
+      // Only authenticated sockets are allowed to join a Socket.IO room.
       for (const room of socket.rooms) {
         if (room !== socket.id) {
           socket.leave(room);
@@ -173,47 +216,17 @@ io.on('connection', (socket) => {
       socket.data.roomId = roomId;
       socket.data.profile = {
         displayName: String(payload.displayName || 'Guest').slice(0, 40),
-        role: String(payload.role || 'guest').slice(0, 20),
-        myLang: payload.myLang || 'zh-TW',
-        targetLang: payload.targetLang || 'ja-JP',
+        role,
+        ...languages,
       };
-
-      // 訪客通道 /guest：強制自備 Key，永不使用主辦方伺服器額度
-      const guestLane = payload.guestLane === true || payload.guestLane === 'true';
-      const clientKey = String(payload.apiKey || '').trim();
-      const forceByok =
-        guestLane || String(process.env.REQUIRE_CLIENT_API_KEY || '').toLowerCase() === 'true';
-
-      socket.data.translator = {
-        mode: clientKey ? 'byok' : 'server',
-        apiKey: clientKey ? clientKey.slice(0, 200) : '',
-        model: String(payload.apiModel || 'gemini-2.5-flash').trim().slice(0, 80),
-        provider: 'gemini',
-        guestLane: !!guestLane,
-      };
-
-      if (forceByok && !clientKey) {
-        if (typeof ack === 'function') {
-          ack({
-            ok: false,
-            error: guestLane
-              ? '訪客測試通道需輸入自己的 Gemini API Key'
-              : '此站需自行輸入 Gemini API Key 才能進入',
-          });
-        }
-        return;
-      }
-
-      // 訪客通道即使誤帶空 key 也不准退回 server mode
-      if (guestLane) {
-        socket.data.translator.mode = 'byok';
-      }
+      socket.data.isHost = isHost;
+      socket.data.translator = { mode: 'server' };
 
       const snapshot = rooms.join(roomId, socket.id, socket.data.profile);
       io.to(roomId).emit('room_update', snapshot);
 
       console.log(
-        `[房間] ${socket.data.profile.displayName} → ${roomId} (translate=${socket.data.translator.mode}${guestLane ? ',guest' : ''})`
+        `[房間] ${socket.data.profile.displayName} → ${roomId} (${isHost ? 'host' : 'invite'})`
       );
       if (typeof ack === 'function') {
         ack({
@@ -221,8 +234,8 @@ io.on('connection', (socket) => {
           roomId,
           snapshot,
           selfId: socket.id,
-          translateMode: socket.data.translator.mode,
-          guestLane: !!guestLane,
+          translateMode: 'server',
+          access: isHost ? 'host' : 'invite',
         });
       }
     } catch (err) {
@@ -231,31 +244,43 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('update_translator', (payload = {}, ack) => {
-    const clientKey = String(payload.apiKey || '').trim();
-    socket.data.translator = {
-      mode: clientKey ? 'byok' : 'server',
-      apiKey: clientKey ? clientKey.slice(0, 200) : '',
-      model: String(payload.apiModel || socket.data.translator?.model || 'gemini-2.5-flash')
-        .trim()
-        .slice(0, 80),
-      provider: 'gemini',
-    };
-    if (typeof ack === 'function') {
-      ack({ ok: true, translateMode: socket.data.translator.mode });
+  // The host may switch their own speaking lane during a live test. Invitees
+  // are deliberately fixed to the role encoded in their signed invitation.
+  socket.on('set_role', (payload = {}, ack) => {
+    const roomId = String(socket.data.roomId || '').trim();
+    if (!roomId || !socket.rooms.has(roomId)) {
+      if (typeof ack === 'function') ack({ ok: false, error: '尚未加入房間，請重新連線' });
+      return;
     }
+    if (!socket.data.isHost) {
+      if (typeof ack === 'function') ack({ ok: false, error: '受邀者的語言由邀請連結決定，請向主持人索取正確連結。' });
+      return;
+    }
+
+    const role = payload.role === 'jp' ? 'jp' : 'tw';
+    const languages = role === 'jp'
+      ? { myLang: 'ja-JP', targetLang: 'zh-TW' }
+      : { myLang: 'zh-TW', targetLang: 'ja-JP' };
+    socket.data.profile = { ...socket.data.profile, role, ...languages };
+    const snapshot = rooms.join(roomId, socket.id, socket.data.profile);
+    io.to(roomId).emit('room_update', snapshot);
+    if (typeof ack === 'function') ack({ ok: true, role, languages });
   });
 
   socket.on('send_speech', (data = {}) => {
-    const roomId = String(data.roomId || socket.data.roomId || '').trim();
+    const roomId = String(socket.data.roomId || '').trim();
     const msgId = String(data.msgId || '').trim();
     const text = String(data.text || '').trim().slice(0, 2000);
-    const sourceLang = data.sourceLang || socket.data.profile?.myLang || 'zh-TW';
-    const targetLang = data.targetLang || socket.data.profile?.targetLang || 'ja-JP';
+    const sourceLang = socket.data.profile?.myLang || 'zh-TW';
+    const targetLang = socket.data.profile?.targetLang || 'ja-JP';
 
     if (!roomId || !msgId || !text) return;
     if (!socket.rooms.has(roomId)) {
       socket.emit('server_error', { message: '尚未加入房間，請重新連線' });
+      return;
+    }
+    if (!rooms.allowRequest(roomId, MAX_TRANSLATIONS_PER_MINUTE)) {
+      socket.emit('server_error', { message: '此會議室的翻譯速率已達上限，請稍候再說。' });
       return;
     }
 
@@ -270,10 +295,7 @@ io.on('connection', (socket) => {
       at: Date.now(),
     };
 
-    // 1) 立刻廣播原文給房間其他人
-    socket.to(roomId).emit('receive_original', originalPayload);
-
-    rooms.pushHistory(roomId, {
+    const historyItem = rooms.pushHistory(roomId, {
       msgId,
       senderId: socket.id,
       senderName,
@@ -282,6 +304,10 @@ io.on('connection', (socket) => {
       targetLang,
       translatedText: null,
     });
+    if (!historyItem) return;
+
+    // Persist and de-duplicate before broadcasting the original.
+    socket.to(roomId).emit('receive_original', { ...originalPayload, sequence: historyItem.sequence });
 
     // 2) 佇列翻譯後廣播結果（優先使用該使用者自帶的 API Key）
     const speechSentAt = originalPayload.at;
@@ -290,8 +316,7 @@ io.on('connection', (socket) => {
       try {
         const t = socket.data.translator || {};
         const result = await translate(text, sourceLang, targetLang, {
-          apiKey: t.mode === 'byok' ? t.apiKey : '',
-          model: t.model,
+          apiKey: '',
         });
         const translateMs = Date.now() - translateStarted;
         const translatedText = escapePlain(result.text);
@@ -304,12 +329,14 @@ io.on('connection', (socket) => {
           translateMs,
           sentAt: speechSentAt,
         });
+        io.to(roomId).emit('room_update', rooms.snapshot(roomId));
         console.log(
           `[翻譯][${result.provider}] ${roomId} ${translateMs}ms: ${text.slice(0, 40)} → ${result.text.slice(0, 40)}`
         );
       } catch (error) {
         const translateMs = Date.now() - translateStarted;
-        console.error(`[翻譯失敗] ${roomId}`, error.message);
+        const reason = safeTranslationFailureReason(error);
+        console.error(`[翻譯失敗] ${roomId}`, reason, error.message);
         const fallback = `[翻譯失敗] ${escapePlain(text)}`;
         rooms.updateTranslation(roomId, msgId, fallback, 'error');
         io.to(roomId).emit('receive_translation', {
@@ -319,7 +346,9 @@ io.on('connection', (socket) => {
           translateMs,
           sentAt: speechSentAt,
           error: true,
+          reason,
         });
+        io.to(roomId).emit('room_update', rooms.snapshot(roomId));
       }
     });
   });
@@ -346,7 +375,7 @@ server.listen(PORT, () => {
   console.log(`翻譯引擎鏈: ${providerChain().map((p) => p.name).join(' → ')}`);
   console.log(`公開說明 http://localhost:${PORT}/`);
   console.log(`公開測試 http://localhost:${PORT}/try`);
-  console.log(`自用入口 http://localhost:${PORT}${HOST_LOBBY_PATH} （勿外傳）`);
+  console.log(HOST_LOBBY_PATH ? `主持人入口 http://localhost:${PORT}${HOST_LOBBY_PATH}` : '主持人入口未啟用：請設定 32 字元以上的 HOST_LOBBY_TOKEN');
   console.log(
     `[env] TRANSLATE_PROVIDER=${envGet('TRANSLATE_PROVIDER', 'SYNC_TRANSLATE_PROVIDER') || '(unset)'} ` +
       `hasGeminiKey=${envHas('GEMINI_API_KEY', 'GOOGLE_API_KEY', 'SYNC_GEMINI_API_KEY')} ` +

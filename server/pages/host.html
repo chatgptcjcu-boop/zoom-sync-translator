@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SyncSub 自用會議室</title>
+  <title>KirokuFlow 日中／中日字幕</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Noto+Sans+JP:wght@400;700&family=Noto+Sans+TC:wght@400;700&family=Sora:wght@600;700&display=swap" rel="stylesheet" />
@@ -14,13 +14,23 @@
 <body>
   <section id="lobby" class="lobby">
     <div class="lobby-card">
-      <p class="badge-host">自用通道 · 伺服器翻譯額度</p>
-      <h1 class="brand">Sync<span>Sub</span> Meeting</h1>
-      <p class="lead">此頁僅供站長自用。請收藏本頁完整網址，勿轉傳給外部測試者。</p>
+      <p class="badge-host">KirokuFlow · 招待制の会議字幕</p>
+      <h1 class="brand">Kiroku<span>Flow</span> 字幕</h1>
+      <p class="lead">主催者は会議番号を決め、教授用の期限付き招待リンクを作成してください。翻訳 API キーの入力は不要です。</p>
 
       <div class="field">
         <label for="displayName">顯示名稱</label>
         <input id="displayName" type="text" maxlength="40" placeholder="例如：張老師 / 田中教授" />
+      </div>
+
+      <div class="field">
+        <label for="inviteRole">招待する参加者 / 受邀與會者</label>
+        <select id="inviteRole"><option value="jp">日本端（日本語 → 繁體中文）</option><option value="tw">台灣端（繁中 → 日本語）</option></select>
+        <label for="inviteExpiry" class="sub-label">招待の有効時間 / 邀請有效時間</label>
+        <select id="inviteExpiry"><option value="2026-09-16T12:00:00+08:00" selected>9/16 會議＋提前練習（台灣 12:00／日本 13:00 截止）</option><option value="30">30 分</option><option value="45">45 分</option><option value="60">60 分</option></select>
+        <p class="hint">9/16 正式會議：台灣 10:00／日本 11:00。此邀請建立後即可練習，會議當天沿用同一連結。</p>
+        <button type="button" class="secondary-btn" id="createInviteBtn">招待リンクを作成 / 建立邀請</button>
+        <input id="inviteOutput" type="text" readonly aria-label="招待連結" placeholder="建立後會顯示並複製邀請連結" />
       </div>
 
       <div class="field">
@@ -47,20 +57,9 @@
         <input id="serverUrl" type="text" value="" placeholder="空白 = 目前這個網站" />
       </div>
 
-      <div class="field hidden" id="billingField">
-        <input type="radio" name="billingMode" id="billingHost" value="host" checked />
-        <input type="radio" name="billingMode" id="billingByok" value="byok" />
-      </div>
-      <div class="field hidden" id="byokFields">
-        <input id="clientApiKey" type="password" maxlength="200" />
-        <select id="clientApiModel">
-          <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
-        </select>
-      </div>
-
       <button type="button" class="primary-btn" id="enterBtn">進入會議室</button>
       <p class="hint">
-        給別人測試請只傳公開說明頁（網站根目錄）或 <code>/try</code>，不要傳本自用網址。
+        主催者の URL は共有しないでください。参加者には上で作成した期限付き URL のみを送ります。
       </p>
     </div>
   </section>

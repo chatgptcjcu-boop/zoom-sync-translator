@@ -33,6 +33,20 @@ function mapLang(code, provider) {
   return entry[provider] || code;
 }
 
+// Keep upstream response bodies out of logs and the browser.  They can include
+// request details, while the status code is enough to tell an operator what to fix.
+function providerRequestError(provider, error) {
+  const status = Number(error?.response?.status || 0);
+  let reason = 'network_or_service_error';
+  if (status === 400) reason = 'request_rejected';
+  else if (status === 401 || status === 403) reason = 'credentials_or_api_access';
+  else if (status === 404) reason = 'model_not_available';
+  else if (status === 429) reason = 'quota_or_rate_limit';
+  else if (status >= 500) reason = 'provider_unavailable';
+  else if (error?.code === 'ECONNABORTED') reason = 'request_timeout';
+  return new Error(`${provider}: ${reason}${status ? ` (${status})` : ''}`);
+}
+
 async function translateWithMyMemory(text, src, tgt) {
   const srcLang = mapLang(src, 'mymemory');
   const tgtLang = mapLang(tgt, 'mymemory');
@@ -128,34 +142,39 @@ async function translateWithGemini(text, src, tgt, opts = {}) {
   const tgtLabel = mapLang(tgt, 'gemini');
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
-  const { data } = await axios.post(
-    url,
-    {
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            {
-              text:
-                `You are a professional meeting interpreter. Translate from ${srcLabel} to ${tgtLabel}. ` +
-                'Return only the translation. Keep names, numbers, and technical terms accurate. No quotes or commentary.\n\n' +
-                text,
-            },
-          ],
+  let data;
+  try {
+    ({ data } = await axios.post(
+      url,
+      {
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              {
+                text:
+                  `You are a professional meeting interpreter. Translate from ${srcLabel} to ${tgtLabel}. ` +
+                  'Return only the translation. Keep names, numbers, and technical terms accurate. No quotes or commentary.\n\n' +
+                  text,
+              },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.2,
         },
-      ],
-      generationConfig: {
-        temperature: 0.2,
       },
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': key,
-      },
-      timeout: 15000,
-    }
-  );
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key,
+        },
+        timeout: 15000,
+      }
+    ));
+  } catch (error) {
+    throw providerRequestError('Gemini', error);
+  }
 
   const translated = data?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('').trim();
   if (!translated) {

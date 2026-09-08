@@ -245,6 +245,15 @@ a.primary-btn.link-btn {
 
 .primary-btn:hover { filter: brightness(1.05); }
 
+.secondary-btn {
+  border: 1px solid rgba(45, 212, 168, 0.6);
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: var(--mine);
+  background: rgba(45, 212, 168, 0.08);
+  cursor: pointer;
+}
+
 .hint {
   margin-top: 18px;
   font-size: 0.82rem;
