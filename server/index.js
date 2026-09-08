@@ -209,6 +209,7 @@ io.on('connection', (socket) => {
         role,
         ...languages,
       };
+      socket.data.isHost = isHost;
       socket.data.translator = { mode: 'server' };
 
       const snapshot = rooms.join(roomId, socket.id, socket.data.profile);
@@ -231,6 +232,29 @@ io.on('connection', (socket) => {
       console.error('[join_room]', err);
       if (typeof ack === 'function') ack({ ok: false, error: err.message });
     }
+  });
+
+  // The host may switch their own speaking lane during a live test. Invitees
+  // are deliberately fixed to the role encoded in their signed invitation.
+  socket.on('set_role', (payload = {}, ack) => {
+    const roomId = String(socket.data.roomId || '').trim();
+    if (!roomId || !socket.rooms.has(roomId)) {
+      if (typeof ack === 'function') ack({ ok: false, error: '尚未加入房間，請重新連線' });
+      return;
+    }
+    if (!socket.data.isHost) {
+      if (typeof ack === 'function') ack({ ok: false, error: '受邀者的語言由邀請連結決定，請向主持人索取正確連結。' });
+      return;
+    }
+
+    const role = payload.role === 'jp' ? 'jp' : 'tw';
+    const languages = role === 'jp'
+      ? { myLang: 'ja-JP', targetLang: 'zh-TW' }
+      : { myLang: 'zh-TW', targetLang: 'ja-JP' };
+    socket.data.profile = { ...socket.data.profile, role, ...languages };
+    const snapshot = rooms.join(roomId, socket.id, socket.data.profile);
+    io.to(roomId).emit('room_update', snapshot);
+    if (typeof ack === 'function') ack({ ok: true, role, languages });
   });
 
   socket.on('send_speech', (data = {}) => {

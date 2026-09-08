@@ -115,6 +115,30 @@
   els.roleTw.addEventListener('click', () => setRole('tw'));
   els.roleJp.addEventListener('click', () => setRole('jp'));
 
+  function requestedRoleFromLanguages() {
+    return els.myLang.value === 'ja-JP' || els.targetLang.value === 'zh-TW' ? 'jp' : 'tw';
+  }
+
+  function changeMeetingRole() {
+    const requestedRole = requestedRoleFromLanguages();
+    const previousRole = state.role;
+    // Keep the two controls a valid Chinese/Japanese pair immediately.
+    setRole(requestedRole);
+    if (!state.socket?.connected || !state.roomId) return;
+    state.socket.emit('set_role', { role: requestedRole }, (res) => {
+      if (!res?.ok) {
+        setRole(previousRole);
+        showDebug(res?.error || '無法變更語言設定');
+        return;
+      }
+      setRole(res.role);
+      showDebug(res.role === 'jp' ? '已切換：日文 → 繁中' : '已切換：繁中 → 日文');
+    });
+  }
+
+  els.myLang.addEventListener('change', changeMeetingRole);
+  els.targetLang.addEventListener('change', changeMeetingRole);
+
   // 從 URL 預填：?room=xxx&role=jp&name=Tanaka
   (function hydrateFromQuery() {
     const q = new URLSearchParams(location.search);
